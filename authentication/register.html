@@ -1,0 +1,44 @@
+<h1>Register</h1>
+<h3>{{.Message}}</h3>
+
+<form action="/authorize/register", method="POST">
+	<label for="username">Username:</label><br>
+	<input type="text" name="username" value="{{.Prev_username}}"><br>
+
+	<label for="name">Name:</label><br>
+	<input type="text" name="name" value="{{.Prev_name}}"><br>
+
+	<label for="surname">Surname:</label><br>
+	<input type="text" name="surname" value="{{.Prev_surname}}"><br>
+
+	<label for="grade">Grade:</label><br>
+	{{$selected_grade := .Prev_grade}}
+	<select name="grade">
+		{{range .Grades}}
+		<option value="{{.}}" {{if eq . $selected_grade}} selected {{end}}>{{.}}</option>
+		{{end}}
+	</select><br>
+
+	<label for="letter">Letter:</label><br>
+	{{$selected_letter := .Prev_letter}}
+	<select name="letter">
+		{{range .Letters}}
+		<option value="{{.}}" {{if eq . $selected_letter}} selected {{end}}>{{.}}</option>
+		{{end}}
+	</select><br>
+
+	<label for="password">Password:</label><br>
+	<input type="password" name="password"><br>
+
+	<label for="password_check">Password check:</label><br>
+	<input type="password" name="password_check"><br>
+	<input type="submit" value="Submit">
+</form>
+
+
+<!-- username string
+	name string
+	surname string
+	grade byte
+	letter byte
+	password uint64 -->
