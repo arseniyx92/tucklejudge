@@ -193,7 +193,7 @@ func (t *SplayTree[C, V]) AddNode(key C, value V) {
 
 func (t *SplayTree[C, V]) CheckNode(key C) bool {
 	t.find(&Vertex[C, V]{key: key})
-	if t.root.vertex.key == key {
+	if t.root != nil && t.root.vertex.key == key {
 		return true
 	}
 	return false
@@ -201,7 +201,7 @@ func (t *SplayTree[C, V]) CheckNode(key C) bool {
 
 func (t *SplayTree[C, V]) ReturnNodeValue(key C) (V, bool) {
 	t.find(&Vertex[C, V]{key: key})
-	if t.root.vertex.key == key {
+	if t.root != nil && t.root.vertex.key == key {
 		return t.root.vertex.value, true
 	}
 	var _default V

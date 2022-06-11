@@ -3,17 +3,13 @@ package authentication
 import (
 	"os"
 	"net/http"
-	"html/template"
 	"fmt"
 	"crypto/sha256"
 	"strings"
-	"sync"
 	"bufio"
 	"time"
-	"tucklejudge/utils/splayMap"
+	"tucklejudge/utils"
 )
-
-var CookieStorage = &splayMap.SplayTree[string, string]{}
 
 func generateCookie(w http.ResponseWriter, username string, password string) {
 	key := fmt.Sprintf("%x", createPasswordHash(username+password))
@@ -23,13 +19,13 @@ func generateCookie(w http.ResponseWriter, username string, password string) {
 		Expires: time.Now().Add(48*time.Hour),
 		Path: "/",
 	}
-	CookieStorage.AddNode(key, username)
+	utils.LoginCookieStorage.AddNode(key, username)
 	http.SetCookie(w, &cookie)
 }
 
 func readSpecificLineFromFile(filepath string, line int) (string, error) {
-	UserFilesMutex.Lock()
-	defer UserFilesMutex.Unlock()
+	utils.UserFilesMutex.Lock()
+	defer utils.UserFilesMutex.Unlock()
 
 	f, err := os.Open(filepath)
 	if (err != nil) {
@@ -73,10 +69,10 @@ type User struct {
 	password [32]byte
 }
 
-var UserFilesMutex sync.Mutex
+
 func (rg *User) save() error {
-	UserFilesMutex.Lock()
-	defer UserFilesMutex.Unlock()
+	utils.UserFilesMutex.Lock()
+	defer utils.UserFilesMutex.Unlock()
 
 	// adding user to user.txt (usertlist)
 	f, err := os.OpenFile("authentication/users.txt", os.O_APPEND|os.O_WRONLY, 0600)
@@ -97,14 +93,10 @@ func createPasswordHash(password string) [32]byte {
 	return sha256.Sum256([]byte(password))
 }
 
-func RenderTemplate(w http.ResponseWriter, tmpl string, page interface{}) {
-	err := templates.ExecuteTemplate(w, tmpl+".html", page)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	if utils.CheckForAuthorizationCapability(w, r) == false {
+		return
+	}
 	current_login := Login{}
 
 	infoS := r.URL.Path[len("/login/"):]
@@ -126,13 +118,16 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	RenderTemplate(w, "login", &current_login)
+	utils.RenderTemplate(w, "login", &current_login)
 }
 
 func AuthorizationLogHandler(w http.ResponseWriter, r *http.Request) {
+	if utils.CheckForAuthorizationCapability(w, r) == false {
+		return
+	}
 	message := "";
 	failure := false
-	if _, err := os.Stat("authentication/users/"+r.FormValue("username")+".txt"); err != nil {
+	if _, err := os.Stat("authentication/users/"+r.FormValue("username")+".txt"); err != nil || r.FormValue("username") == "" {
 		message = "User$with$such$\"Username\"$does$not$exist!"
 		failure = true
 	} else {
@@ -159,6 +154,9 @@ func AuthorizationLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
+	if utils.CheckForAuthorizationCapability(w, r) == false {
+		return
+	}
 	current_registration := usual_registration
 
 	infoS := r.URL.Path[len("/register/"):]
@@ -184,13 +182,16 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	RenderTemplate(w, "register", &current_registration)
+	utils.RenderTemplate(w, "register", &current_registration)
 }
 
 func AuthorizationRegHandler(w http.ResponseWriter, r *http.Request) {
+	if utils.CheckForAuthorizationCapability(w, r) == false {
+		return
+	}
 	message := "";
 	failure := false
-	if _, err := os.Stat("authentication/users/"+r.FormValue("username")+".txt"); err == nil {
+	if _, err := os.Stat("authentication/users/"+r.FormValue("username")+".txt"); err == nil || r.FormValue("username") == "" {
 		message = "\"Username\"$has$already$been$registered$:($$Try$to$choose$another$one"
 		failure = true
 	} else if r.FormValue("password") != r.FormValue("password_check") { // or any other conditions
@@ -219,8 +220,7 @@ func AuthorizationRegHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-var templates = template.Must(template.ParseFiles("authentication/login.html", "authentication/register.html"))
 var usual_registration = Registration{
 	Grades: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
-	Letters: []string{"А", "Б", "В", "Г", "Д", "Е", "Ж", "З"},
+	Letters: []string{"А", "Б", "В", "Г", "Д", "Е", "Ж", "З", "И", "К", "Л", "М", "Н", "О", "П", "Р", "С", "Т", "У", "Ф", "Х", "Ц", "Ч", "Ш", "Щ", "Э", "Ю", "Я"},
 }

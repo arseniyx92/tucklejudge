@@ -1,0 +1,15 @@
+<h1>Test Creator</h1>
+
+<form action="/test/createTest/process" method="POST">
+
+<label for="testName">Test name:</label>
+<input type="text" name="testName" id="testName" placeholder="ThrillingTest"><br>
+
+<h3>Questions (maximum answer length is 15) </h3>
+{{range .Questions}}
+<label for="question{{.}}">{{.}}. </label>
+<input type="text" name="question{{.}}" maxlength = "15"><br>
+{{end}}
+
+<input type="submit" value="Save!">
+</form>

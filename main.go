@@ -6,15 +6,17 @@ import (
 	"time"
 	"tucklejudge/authentication"
 	"tucklejudge/mainMenu"
+	"tucklejudge/tester/testCreator"
+	"tucklejudge/utils"
 )
 
 func main() {
-	ticker := time.NewTicker(10*time.Second)
+	ticker := time.NewTicker(48*time.Hour)
 
 	go func() {
 		for {
 			<-ticker.C
-			authentication.CookieStorage.Clear()
+			utils.LoginCookieStorage.Clear()
 		}
 	}()
 
@@ -24,10 +26,9 @@ func main() {
 	http.HandleFunc("/register/", authentication.RegisterHandler)
 	http.HandleFunc("/authorize/register", authentication.AuthorizationRegHandler)
 
-	http.HandleFunc("/", mainMenu.mainPageHandler)
+	http.HandleFunc("/", mainMenu.MainPageHandler)
+
+	http.HandleFunc("/test/createTest", testCreator.TestCreatorHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
-} 
-// git branch --all
-// git push origin --delete master
-// git push -u main
+}
