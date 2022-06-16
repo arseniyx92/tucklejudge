@@ -1,6 +1,7 @@
-Username: lolik12
-Name: Nasty
-Surname: Poop
-Grade: 11
-Letter: З
+Username: kek
+Name: e
+Surname: e
+Is teacher: false
+Grade: 1
+Letter: А
 Password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3

@@ -7,6 +7,7 @@ import (
 
 type MenuUI struct {
 	Username string
+	Teacher bool
 }
 
 func MainPageHandler(w http.ResponseWriter, r *http.Request) {
@@ -14,10 +15,15 @@ func MainPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, _ := r.Cookie("user_info")
-	user, _ := utils.LoginCookieStorage.ReturnNodeValue(c.Value)
+	username, _ := utils.LoginCookieStorage.ReturnNodeValue(c.Value)
+	user, err := utils.GetAccauntInfo(username)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
 	menu := &MenuUI{
-		Username: user,
+		Username: user.Username,
+		Teacher: user.Teacher,
 	}
 	utils.RenderTemplate(w, "mainMenu", menu)
 }

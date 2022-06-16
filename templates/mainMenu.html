@@ -1,13 +1,22 @@
 <h1>Welcome {{.Username}}!</h1>
 
+{{if eq .Teacher true}}
+
 <form action="/test/createTest" method="POST">
 	<label for="createTest">Create new test:</label><br>
 	<input type="submit" value="Create new test">
 </form><br>
 
 <form action="/test/checkTest" method="POST">
-	<label for="checkTest">Check test:</label><br>
-	<input type="text" name="testName" placeholder="#XXXX - test id">
+	<label for="checkTest">Check test from photo:</label><br>
+	<input type="file" name="testFile"><br>
+	<input type="submit" value="Check!">
+</form><br>
+
+<form action="/test/checkTestsGlob" method="POST">
+	<label for="checkTestsGlob">Check tests from PDF pile:</label><br>
+	<input type="file" name="testFiles"><br>
+	<!-- <input type="text" name="testName" placeholder="#XXXX - test id"> -->
 	<input type="submit" value="Check!">
 </form><br>
 
@@ -15,3 +24,14 @@
 	<label for="newLesson">Create new lesson:</label><br>
 	<input type="submit" value="Create!">
 </form>
+
+
+{{else}}
+
+<form action="/test/checkTest" method="POST">
+	<label for="checkTest">Check test from photo:</label><br>
+	<input type="file" name="testFile"><br>
+	<input type="submit" value="Check!">
+</form><br>
+
+{{end}}

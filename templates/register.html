@@ -9,7 +9,10 @@
 	<input type="text" name="name" value="{{.Prev_name}}"><br>
 
 	<label for="surname">Surname:</label><br>
-	<input type="text" name="surname" value="{{.Prev_surname}}"><br>
+	<input type="text" name="surname" value="{{.Prev_surname}}"><br><hr>
+
+	<input type="checkbox" id="isTeacher" name="isTeacher" {{if eq .Prev_teacher "on"}} checked {{end}}>
+	<label for="isTeacher">mark if you're a teacher. <br>OR if you're a student: </label><br>
 
 	<label for="grade">Grade:</label><br>
 	{{$selected_grade := .Prev_grade}}
@@ -25,7 +28,7 @@
 		{{range .Letters}}
 		<option value="{{.}}" {{if eq . $selected_letter}} selected {{end}}>{{.}}</option>
 		{{end}}
-	</select><br>
+	</select><br><hr>
 
 	<label for="password">Password:</label><br>
 	<input type="password" name="password"><br>
