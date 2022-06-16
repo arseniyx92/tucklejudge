@@ -6,6 +6,7 @@ import (
 )
 
 type MenuUI struct {
+	UserID string
 	Username string
 	Teacher bool
 }
@@ -22,6 +23,7 @@ func MainPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	menu := &MenuUI{
+		UserID: user.ID,
 		Username: user.Username,
 		Teacher: user.Teacher,
 	}

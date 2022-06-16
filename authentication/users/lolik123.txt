@@ -1,7 +1,0 @@
-Username: lolik123
-Name: Арсений
-Surname: Хлытчиев
-Is teacher: true
-Grade: 1
-Letter: А
-Password: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

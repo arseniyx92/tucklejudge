@@ -11,6 +11,8 @@ import (
 )
 
 func main() {
+	utils.Init()
+
 	ticker := time.NewTicker(48*time.Hour)
 
 	go func() {

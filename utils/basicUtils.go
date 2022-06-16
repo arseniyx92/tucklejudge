@@ -10,15 +10,29 @@ import (
 	"os"
 	"bufio"
 	"fmt"
+	"strconv"
 )
 
 var RandomGen = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 var UserFilesMutex sync.Mutex
 
+var IDtoUsername = &splayMap.SplayTree[int, string]{}
 var LoginCookieStorage = &splayMap.SplayTree[string, string]{}
 
 var templates = template.Must(template.ParseGlob("templates/*.html"))
+
+func Init() {
+	// initializing IDs to Users (using users.txt)
+	f, err := os.Open("authentication/users.txt")
+	if err != nil {
+		panic(err.Error())
+	}
+	scanner := bufio.NewScanner(f)
+	for id := 0; scanner.Scan(); id++ {
+		IDtoUsername.AddNode(id, scanner.Text())
+	}
+}
 
 func CheckForValidStandardAccess(w http.ResponseWriter, r *http.Request) bool {
 	c, err := r.Cookie("user_info")
@@ -46,6 +60,7 @@ func RenderTemplate(w http.ResponseWriter, tmpl string, page interface{}) {
 }
 
 type User struct {
+	ID string
 	Username string
 	Name string
 	Surname string
@@ -59,19 +74,41 @@ func (rg *User) Save() error {
 	UserFilesMutex.Lock()
 	defer UserFilesMutex.Unlock()
 
+	// getting currently free ID
+	f, err := os.Open("authentication/currentID.txt")
+	if err != nil {
+		return err
+	}
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	id, err := strconv.Atoi(scanner.Text())
+	if err != nil {
+		return err
+	}
+	f.Close()
+	string_id := fmt.Sprintf("%d", id)
+	for len(rg.ID)+len(string_id) < 4 {
+		rg.ID += "0"
+	}
+	rg.ID += string_id
+	os.WriteFile("authentication/currentID.txt", []byte(fmt.Sprintf("%d", id+1)), 0600)
+
+	// adding ID to local memory
+	IDtoUsername.AddNode(id, rg.Username)
+
 	// adding user to user.txt (usertlist)
-	f, err := os.OpenFile("authentication/users.txt", os.O_APPEND|os.O_WRONLY, 0600)
+	f, err = os.OpenFile("authentication/users.txt", os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	_, err = f.WriteString(fmt.Sprintf("%s;%s;%s;%v;%s;%s;%s\n", rg.Username, rg.Name, rg.Surname, rg.Teacher, rg.Grade, rg.Letter, rg.Password))
+	_, err = f.WriteString(fmt.Sprintf("%s\n", rg.Username))
 	if err != nil {
 		return err
 	}
 
 	// creating a new file for the user
-	return os.WriteFile("authentication/users/"+rg.Username+".txt", []byte(fmt.Sprintf("Username: %s\nName: %s\nSurname: %s\nIs teacher: %v\nGrade: %s\nLetter: %s\nPassword: %s\n", rg.Username, rg.Name, rg.Surname, rg.Teacher, rg.Grade, rg.Letter, rg.Password)), 0600)
+	return os.WriteFile("authentication/users/"+rg.Username+".txt", []byte(fmt.Sprintf("ID: %s\nUsername: %s\nName: %s\nSurname: %s\nIs teacher: %v\nGrade: %s\nLetter: %s\nPassword: %s\n", rg.ID, rg.Username, rg.Name, rg.Surname, rg.Teacher, rg.Grade, rg.Letter, rg.Password)), 0600)
 }
 
 func GetAccauntInfo(username string) (*User, error) {
@@ -87,6 +124,8 @@ func GetAccauntInfo(username string) (*User, error) {
 
 	var user = &User{}
 
+	scanner.Scan()
+	user.ID = scanner.Text()[len("ID: "):]
 	scanner.Scan()
 	user.Username = scanner.Text()[len("Username: "):]
 	scanner.Scan()
