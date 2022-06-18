@@ -1,0 +1,1 @@
+![sharpness_components_recognition](README_src/nice_pic.jpeg)
