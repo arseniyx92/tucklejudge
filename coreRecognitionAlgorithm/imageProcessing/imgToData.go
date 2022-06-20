@@ -21,6 +21,45 @@ type IntPair struct {
 	first, second int
 }
 
+type Point struct {
+	x, y float64
+}
+
+type Vector struct {
+	dx, dy, len float64
+}
+
+func (a Point) dist(b Point) float64 {
+	dx := a.x - b.x
+	dy := a.y - b.y
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
+func (a Point) vect(b Point) Vector {
+	v := Vector{
+		dx: b.x - a.x,
+		dy: b.y - a.y,
+	}
+	v.len = math.Sqrt(v.dx*v.dx + v.dy*v.dy)
+	return v
+}
+
+func (a Vector) dotProduct(b Vector) float64 {
+	return a.dx*b.dx + a.dy*b.dy
+}
+
+func (a Vector) cosBetween(b Vector) float64 {
+	return a.dotProduct(b) / (a.len * b.len)
+}
+
+func (a Vector) crossProduct(b Vector) float64 {
+	return a.dx*b.dy - a.dy*b.dx
+}
+
+func (a Vector) sinBetween(b Vector) float64 {
+	return a.crossProduct(b) / (a.len * b.len)
+}
+
 type ErrorEmptyQueue int
 
 func (err ErrorEmptyQueue) Error() string {
@@ -234,7 +273,7 @@ func divideOnComponents(img *image.Gray, capacity int, colorGradientPermissionFa
 	return components
 }
 
-func SquaresRecognition(initColored image.Image) (squares [][]IntPair) {
+func squaresRecognition(initColored image.Image) (squares [][]IntPair) {
 	init := imageToGrayScale(initColored)
 	augmentContrast(init)
 
@@ -290,16 +329,206 @@ func SquaresRecognition(initColored image.Image) (squares [][]IntPair) {
 	return squares
 }
 
-func listRecognition(pic image.Image) {
-	squares := SquaresRecognition(pic)
+func photoToStandardDocument(init image.Image) {
+	// making image twice smaller
+	var pic *image.RGBA
+	{
+		transformation := generateAffineMatrixFor2DCords(
+			1.5, 0, 0,
+			0, 1.5, 0,
+		)
+		smallerImage := applyAffineTransformation(init, transformation)
+		pic = image.NewRGBA(image.Rect(0, 0, int(float64(init.Bounds().Size().X)/1.5), int(float64(init.Bounds().Size().Y)/1.5)))
+		for i := pic.Bounds().Min.X; i <= pic.Bounds().Max.X; i++ {
+			for j := pic.Bounds().Min.Y; j <= pic.Bounds().Max.Y; j++ {
+				pic.Set(i, j, smallerImage.At(i, j))
+			}
+		}
+	}
+
+	// looking for squares
+	squares := squaresRecognition(pic)
 	if len(squares) != 3 {
 		panic(errors.New(fmt.Sprintf("Picture has %d helping squares, should be 3", len(squares))))
 	}
+
+	// finding squares centers
+	centers := make([]Point, 3)
+	for i, comp := range squares {
+		meanX := 0.
+		meanY := 0.
+		for _, point := range comp {
+			meanX += float64(point.first)
+			meanY += float64(point.second)
+		}
+		meanX /= float64(len(comp))
+		meanY /= float64(len(comp))
+		centers[i] = Point{meanX, meanY}
+	}
+
+	// repositioning legs and hypotenuse
+	a := centers[0].vect(centers[1])
+	b := centers[0].vect(centers[2])
+	c := centers[1].vect(centers[2])
+	if centers[0].dist(centers[1]) > centers[0].dist(centers[2]) && centers[0].dist(centers[1]) > centers[1].dist(centers[2]) {
+		a = centers[2].vect(centers[0])
+		b = centers[2].vect(centers[1])
+		c = centers[0].vect(centers[1])
+	} else if centers[0].dist(centers[2]) > centers[1].dist(centers[2]) && centers[0].dist(centers[2]) > centers[0].dist(centers[1]) {
+		a = centers[1].vect(centers[0])
+		b = centers[1].vect(centers[2])
+		c = centers[0].vect(centers[2])
+	}
+
+	// sorting sides a.len() < b.len() < c.len()
+	if a.len > b.len && a.len < c.len {
+		a, b = b, a
+	} else if a.len < b.len && b.len > c.len {
+		if c.len > a.len {
+			b, c = c, b
+		} else {
+			a, b, c = c, a, b
+		}
+	} else if a.len > b.len && a.len > c.len {
+		if c.len > b.len {
+			a, b, c = b, c, a
+		} else {
+			a, b, c = c, b, a
+		}
+	}
+
+	// making STANDARD larger canvas for image TODO: rectify coz it's redundant
+	canvas := pic
+	//maxPictureSide := max(pic.Bounds().Size().X, pic.Bounds().Size().Y)
+	//canvas := image.NewRGBA(image.Rect(0, 0, maxPictureSide, maxPictureSide))
+	//for i := pic.Bounds().Min.X; i <= pic.Bounds().Max.X; i++ {
+	//	for j := pic.Bounds().Min.Y; j <= pic.Bounds().Max.Y; j++ {
+	//		canvas.Set(i, j, pic.At(i, j))
+	//	}
+	//}
+
+	// rotating image to make OX parallel to one of the sides
+	{
+		OX := Vector{
+			dx:  1,
+			dy:  0,
+			len: 1,
+		}
+		cos := math.Abs(a.cosBetween(OX))
+		sin := math.Sqrt(1 - cos*cos)
+		transformation := generateAffineMatrixFor2DCords(
+			cos, sin, 0,
+			-sin, cos, 0,
+		)
+		canvas = applyAffineTransformation(canvas, transformation)
+	}
+
+	// rotating image to make a and b perpendicular
+	{
+		sin := a.cosBetween(b)        // sin(90-A) = cos(A)
+		cos := math.Sqrt(1 - sin*sin) // cos(90-A)
+		tg := sin / cos
+		transformation := generateAffineMatrixFor2DCords(
+			1, tg, 0,
+			0, 1, 0,
+		)
+		canvas = applyAffineTransformation(canvas, transformation)
+	}
+
+	// if picture is flipped it should be reversed
+	{
+		if b.dy < 0 {
+			canvas = Flip(canvas)
+		}
+	}
+
+	// adjust picture so (0,0) pixel is the middle of the left above square
+	{
+		// finding squares again
+		squares = squaresRecognition(canvas)
+		if len(squares) != 3 {
+			panic(errors.New(fmt.Sprintf("Picture has %d helping squares, should be 3", len(squares))))
+		}
+		centers := make([]Point, 3)
+		for i, comp := range squares {
+			meanX := 0.
+			meanY := 0.
+			for _, point := range comp {
+				meanX += float64(point.first)
+				meanY += float64(point.second)
+			}
+			meanX /= float64(len(comp))
+			meanY /= float64(len(comp))
+			centers[i] = Point{meanX, meanY}
+		}
+		zeroPoint := centers[0]
+		if centers[1].x < zeroPoint.x {
+			zeroPoint = centers[1]
+		}
+		if centers[2].x < zeroPoint.x {
+			zeroPoint = centers[2]
+		}
+		transformation := generateAffineMatrixFor2DCords(
+			1, 0, zeroPoint.x,
+			0, 1, zeroPoint.y,
+		)
+		canvas = applyAffineTransformation(canvas, transformation)
+	}
+}
+
+type Matrix struct {
+	matrix [][]float64
+}
+
+func generateAffineMatrixFor2DCords(a1, a2, a3, b1, b2, b3 float64) (affine Matrix) {
+	affine.matrix = make([][]float64, 2)
+	affine.matrix[0] = make([]float64, 3)
+	affine.matrix[0][0] = a1
+	affine.matrix[0][1] = a2
+	affine.matrix[0][2] = a3
+	affine.matrix[1] = make([]float64, 3)
+	affine.matrix[1][0] = b1
+	affine.matrix[1][1] = b2
+	affine.matrix[1][2] = b3
+	return affine
+}
+
+func (m *Matrix) D2multToInt(arr []float64) (result []int) {
+	result = make([]int, 2)
+	for i := 0; i < len(m.matrix); i++ {
+		for k := 0; k < len(arr); k++ {
+			result[i] += int(m.matrix[i][k] * arr[k])
+		}
+	}
+	return result
+}
+
+func Flip(init image.Image) *image.RGBA {
+	img := image.NewRGBA(init.Bounds())
+	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
+		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
+			img.Set(init.Bounds().Size().X-i, init.Bounds().Size().Y-j, init.At(i, j))
+		}
+	}
+	printImage("affine.png", img)
+	return img
+}
+
+func applyAffineTransformation(init image.Image, affine Matrix) *image.RGBA {
+	img := image.NewRGBA(init.Bounds())
+	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
+		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
+			newCords := affine.D2multToInt([]float64{float64(i), float64(j), 1.})
+			img.Set(i, j, init.At(newCords[0], newCords[1]))
+		}
+	}
+	printImage("affine.png", img)
+	return img
 }
 
 func main() {
 	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/harderInitialImage.jpg")
-	img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/photo.jpeg")
-	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/testForm.png")
-	listRecognition(img)
+	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/photo.jpeg")
+	img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/testForm.png")
+	photoToStandardDocument(img)
 }
