@@ -12,6 +12,7 @@ import (
 	_ "image/png"
 	"math"
 	"os"
+	"sort"
 )
 
 const pixel = 1
@@ -288,7 +289,7 @@ func squaresRecognition(initColored image.Image) (squares [][]IntPair) {
 		}
 	}
 	for _, comp := range components {
-		if len(comp) < int(float64(imageSIZE)*0.001) || len(comp) > int(float64(imageSIZE)*0.01) {
+		if len(comp) > int(float64(imageSIZE)*0.01) {
 			continue
 		}
 		for _, pair := range comp {
@@ -297,7 +298,7 @@ func squaresRecognition(initColored image.Image) (squares [][]IntPair) {
 	}
 
 	components = divideOnComponents(img, 2*pixel, 10.*pixel)
-	printImage("naked.png", img)
+	//printImage("naked.png", img)
 
 	// finding squares
 	coloredPic := image.NewRGBA(img.Bounds())
@@ -312,7 +313,7 @@ func squaresRecognition(initColored image.Image) (squares [][]IntPair) {
 		}
 		d := (maxX - minX + maxY - minY) / 2.
 		S := d * d
-		if math.Abs(S-float64(len(comp))) < float64(max(S, float64(len(comp))))*0.3 && len(comp) < int(float64(imageSIZE)*0.01) && len(comp) > int(float64(imageSIZE)*0.001) {
+		if math.Abs(S-float64(len(comp))) < float64(max(S, float64(len(comp))))*0.3 && len(comp) < int(float64(imageSIZE)*0.01) {
 			for _, pair := range comp {
 				coloredPic.Set(pair.first, pair.second, color.RGBA{
 					R: 255,
@@ -325,20 +326,128 @@ func squaresRecognition(initColored image.Image) (squares [][]IntPair) {
 		}
 	}
 
-	printImage("squares.png", coloredPic)
+	sort.Slice(squares, func(i, j int) bool {
+		return len(squares[i]) < len(squares[j])
+	})
+
+	if len(squares) >= 3 {
+		squares = squares[len(squares)-3:]
+	}
+	//printImage("squares.png", coloredPic)
 	return squares
 }
 
-func photoToStandardDocument(init image.Image) {
+type Matrix struct {
+	matrix [][]float64
+}
+
+func (m *Matrix) divideByNumber(x float64) {
+	for _, vec := range m.matrix {
+		for _, val := range vec {
+			val /= x
+		}
+	}
+}
+
+func generateAffineMatrixFor2DCords(a1, a2, a3, b1, b2, b3 float64) (affine Matrix) {
+	affine.matrix = make([][]float64, 2)
+	affine.matrix[0] = make([]float64, 3)
+	affine.matrix[0][0] = a1
+	affine.matrix[0][1] = a2
+	affine.matrix[0][2] = a3
+	affine.matrix[1] = make([]float64, 3)
+	affine.matrix[1][0] = b1
+	affine.matrix[1][1] = b2
+	affine.matrix[1][2] = b3
+	return affine
+}
+
+func (m *Matrix) D2multToInt(arr []float64) (result []int) {
+	result = make([]int, 2)
+	for i := 0; i < len(m.matrix); i++ {
+		for k := 0; k < len(arr); k++ {
+			result[i] += int(m.matrix[i][k] * arr[k])
+		}
+	}
+	return result
+}
+
+func Flip(init image.Image) *image.RGBA {
+	img := image.NewRGBA(init.Bounds())
+	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
+		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
+			img.Set(init.Bounds().Size().X-i, init.Bounds().Size().Y-j, init.At(i, j))
+		}
+	}
+	//printImage("affine.png", img)
+	return img
+}
+
+func applyAffineTransformation(init image.Image, affine Matrix) *image.RGBA {
+	img := image.NewRGBA(init.Bounds())
+	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
+		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
+			newCords := affine.D2multToInt([]float64{float64(i), float64(j), 1.})
+			img.Set(i, j, init.At(newCords[0], newCords[1]))
+		}
+	}
+	//printImage("affine.png", img)
+	return img
+}
+
+func getInverseMatrix(A Matrix) Matrix {
+	det := A.matrix[0][0]*A.matrix[1][1]*A.matrix[2][2] + A.matrix[0][1]*A.matrix[1][2]*A.matrix[2][0] + A.matrix[0][2]*A.matrix[2][1]*A.matrix[1][0] - A.matrix[0][2]*A.matrix[1][1]*A.matrix[2][0] - A.matrix[0][1]*A.matrix[1][0]*A.matrix[2][2] - A.matrix[0][0]*A.matrix[2][1]*A.matrix[1][2]
+	Adjoint := Matrix{matrix: [][]float64{
+		[]float64{A.matrix[1][1]*A.matrix[2][2] - A.matrix[1][2]*A.matrix[2][1], A.matrix[0][2]*A.matrix[2][1] - A.matrix[0][1]*A.matrix[2][2], A.matrix[0][1]*A.matrix[1][2] - A.matrix[0][2]*A.matrix[1][1]},
+		[]float64{A.matrix[1][2]*A.matrix[2][0] - A.matrix[1][0]*A.matrix[2][2], A.matrix[0][0]*A.matrix[2][2] - A.matrix[0][2]*A.matrix[2][0], A.matrix[0][2]*A.matrix[1][0] - A.matrix[0][0]*A.matrix[1][2]},
+		[]float64{A.matrix[1][0]*A.matrix[2][1] - A.matrix[1][1]*A.matrix[2][0], A.matrix[0][1]*A.matrix[2][0] - A.matrix[0][0]*A.matrix[2][1], A.matrix[0][0]*A.matrix[1][1] - A.matrix[0][1]*A.matrix[1][0]},
+	}}
+	Adjoint.divideByNumber(det)
+	return Adjoint
+}
+
+func (m *Matrix) D3multToInt(arr []float64) (result []int) {
+	dimension3 := make([]float64, 3)
+	for i := 0; i < len(m.matrix); i++ {
+		for k := 0; k < len(arr); k++ {
+			dimension3[i] += m.matrix[i][k] * arr[k]
+		}
+	}
+	result = make([]int, 2)
+	result[0] = IntAbs(int(dimension3[0] / dimension3[2]))
+	result[1] = IntAbs(int(dimension3[1] / dimension3[2]))
+	return result
+}
+
+func perspectiveTransformation(init image.Image, x, y float64) *image.RGBA {
+	m := Matrix{matrix: [][]float64{
+		[]float64{1, 0, 0},
+		[]float64{0, 1, 0},
+		[]float64{0, -0.003 * y, 1},
+	}}
+	m = getInverseMatrix(m)
+	img := image.NewRGBA(init.Bounds())
+	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
+		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
+			newCords := m.D3multToInt([]float64{float64(i), float64(j), 1.})
+			img.Set(i, j, init.At(newCords[0], newCords[1]))
+		}
+	}
+	//printImage("PerspectiveNotAffine.png", img)
+	return img
+}
+
+func photoToStandardDocument(init image.Image) image.Image {
 	// making image twice smaller
 	var pic *image.RGBA
 	{
+		dx := max(float64(init.Bounds().Size().X)/800., float64(init.Bounds().Size().Y)/800.)
 		transformation := generateAffineMatrixFor2DCords(
-			1.5, 0, 0,
-			0, 1.5, 0,
+			dx, 0, 0,
+			0, dx, 0,
 		)
 		smallerImage := applyAffineTransformation(init, transformation)
-		pic = image.NewRGBA(image.Rect(0, 0, int(float64(init.Bounds().Size().X)/1.5), int(float64(init.Bounds().Size().Y)/1.5)))
+		pic = image.NewRGBA(image.Rect(0, 0, int(float64(init.Bounds().Size().X)/dx), int(float64(init.Bounds().Size().Y)/dx)))
 		for i := pic.Bounds().Min.X; i <= pic.Bounds().Max.X; i++ {
 			for j := pic.Bounds().Min.Y; j <= pic.Bounds().Max.Y; j++ {
 				pic.Set(i, j, smallerImage.At(i, j))
@@ -398,14 +507,12 @@ func photoToStandardDocument(init image.Image) {
 	}
 
 	// making STANDARD larger canvas for image TODO: rectify coz it's redundant
-	canvas := pic
-	//maxPictureSide := max(pic.Bounds().Size().X, pic.Bounds().Size().Y)
-	//canvas := image.NewRGBA(image.Rect(0, 0, maxPictureSide, maxPictureSide))
-	//for i := pic.Bounds().Min.X; i <= pic.Bounds().Max.X; i++ {
-	//	for j := pic.Bounds().Min.Y; j <= pic.Bounds().Max.Y; j++ {
-	//		canvas.Set(i, j, pic.At(i, j))
-	//	}
-	//}
+	canvas := image.NewRGBA(image.Rect(0, 0, 800, 800))
+	for i := pic.Bounds().Min.X; i <= pic.Bounds().Max.X; i++ {
+		for j := pic.Bounds().Min.Y; j <= pic.Bounds().Max.Y; j++ {
+			canvas.Set(i, j, pic.At(i, j))
+		}
+	}
 
 	// rotating image to make OX parallel to one of the sides
 	{
@@ -423,7 +530,7 @@ func photoToStandardDocument(init image.Image) {
 		canvas = applyAffineTransformation(canvas, transformation)
 	}
 
-	// rotating image to make a and b perpendicular
+	// rotating image to make a and b perpendicular TODO: redundant if we have perspective transformation
 	{
 		sin := a.cosBetween(b)        // sin(90-A) = cos(A)
 		cos := math.Sqrt(1 - sin*sin) // cos(90-A)
@@ -433,6 +540,15 @@ func photoToStandardDocument(init image.Image) {
 			0, 1, 0,
 		)
 		canvas = applyAffineTransformation(canvas, transformation)
+	}
+
+	// perspective transformation
+	{
+		sin := a.cosBetween(b) // sin(90-A) = cos(A)
+		//cos := math.Sqrt(1 - sin*sin) // cos(90-A)
+		//tx := cos
+		ty := sin
+		canvas = perspectiveTransformation(canvas, 0, ty)
 	}
 
 	// if picture is flipped it should be reversed
@@ -474,61 +590,13 @@ func photoToStandardDocument(init image.Image) {
 		)
 		canvas = applyAffineTransformation(canvas, transformation)
 	}
-}
-
-type Matrix struct {
-	matrix [][]float64
-}
-
-func generateAffineMatrixFor2DCords(a1, a2, a3, b1, b2, b3 float64) (affine Matrix) {
-	affine.matrix = make([][]float64, 2)
-	affine.matrix[0] = make([]float64, 3)
-	affine.matrix[0][0] = a1
-	affine.matrix[0][1] = a2
-	affine.matrix[0][2] = a3
-	affine.matrix[1] = make([]float64, 3)
-	affine.matrix[1][0] = b1
-	affine.matrix[1][1] = b2
-	affine.matrix[1][2] = b3
-	return affine
-}
-
-func (m *Matrix) D2multToInt(arr []float64) (result []int) {
-	result = make([]int, 2)
-	for i := 0; i < len(m.matrix); i++ {
-		for k := 0; k < len(arr); k++ {
-			result[i] += int(m.matrix[i][k] * arr[k])
-		}
-	}
-	return result
-}
-
-func Flip(init image.Image) *image.RGBA {
-	img := image.NewRGBA(init.Bounds())
-	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
-		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
-			img.Set(init.Bounds().Size().X-i, init.Bounds().Size().Y-j, init.At(i, j))
-		}
-	}
-	printImage("affine.png", img)
-	return img
-}
-
-func applyAffineTransformation(init image.Image, affine Matrix) *image.RGBA {
-	img := image.NewRGBA(init.Bounds())
-	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
-		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
-			newCords := affine.D2multToInt([]float64{float64(i), float64(j), 1.})
-			img.Set(i, j, init.At(newCords[0], newCords[1]))
-		}
-	}
-	printImage("affine.png", img)
-	return img
+	return canvas
 }
 
 func main() {
-	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/harderInitialImage.jpg")
+	img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/harderInitialImage.jpg")
 	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/photo.jpeg")
-	img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/testForm.png")
-	photoToStandardDocument(img)
+	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/testForm.png")
+	img = photoToStandardDocument(img)
+	printImage("final.png", img)
 }
