@@ -11,6 +11,7 @@ import (
 	"image/png"
 	_ "image/png"
 	"math"
+	"math/rand"
 	"os"
 	"sort"
 )
@@ -217,10 +218,31 @@ func augmentContrast(img *image.Gray) {
 
 	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
 		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
-			if img.GrayAt(i, j).Y < uint8(mean/2) {
-				img.SetGray(i, j, color.Gray{Y: uint8(max(int(img.GrayAt(i, j).Y)-mean/2, 0))})
+			if img.GrayAt(i, j).Y < max(uint8(mean/2), 100) {
+				img.SetGray(i, j, color.Gray{Y: 0}) //uint8(max(int(img.GrayAt(i, j).Y)-mean/2, 0))})
 			} else {
-				img.SetGray(i, j, color.Gray{Y: uint8(min(int(img.GrayAt(i, j).Y)+mean, 255))})
+				img.SetGray(i, j, color.Gray{Y: 255}) //uint8(min(int(img.GrayAt(i, j).Y)+mean, 255))})
+			}
+		}
+	}
+}
+
+func makeBW(img *image.Gray) {
+	K := 100
+	arr := make([]int, K)
+	for iteration := 0; iteration < K; iteration++ {
+		x := rand.Intn(img.Bounds().Max.X)
+		y := rand.Intn(img.Bounds().Max.Y)
+		arr[iteration] = int(img.GrayAt(x, y).Y)
+	}
+	sort.Ints(arr)
+	colorSeparator := uint8(arr[10])
+	for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i++ {
+		for j := img.Bounds().Min.Y; j <= img.Bounds().Max.Y; j++ {
+			if img.GrayAt(i, j).Y >= colorSeparator {
+				img.SetGray(i, j, color.Gray{Y: 255})
+			} else {
+				img.SetGray(i, j, color.Gray{Y: 0})
 			}
 		}
 	}
@@ -437,7 +459,7 @@ func perspectiveTransformation(init image.Image, x, y float64) *image.RGBA {
 	return img
 }
 
-func photoToStandardDocument(init image.Image) image.Image {
+func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 	// making image twice smaller
 	var pic *image.RGBA
 	{
@@ -536,7 +558,7 @@ func photoToStandardDocument(init image.Image) image.Image {
 		cos := math.Sqrt(1 - sin*sin) // cos(90-A)
 		tg := sin / cos
 		transformation := generateAffineMatrixFor2DCords(
-			1, tg, 0,
+			1, tg, -800*tg,
 			0, 1, 0,
 		)
 		canvas = applyAffineTransformation(canvas, transformation)
@@ -589,14 +611,45 @@ func photoToStandardDocument(init image.Image) image.Image {
 			0, 1, zeroPoint.y,
 		)
 		canvas = applyAffineTransformation(canvas, transformation)
+
+		dx := 0
+		dy := 0
+		if zeroPoint == centers[1] {
+			centers[0], centers[1] = centers[1], centers[0]
+		} else if zeroPoint == centers[2] {
+			centers[0], centers[2] = centers[2], centers[0]
+		}
+		dx = max(int(centers[2].x-centers[0].x), int(centers[1].x-centers[0].x)) + int(math.Sqrt(float64(len(squares[1]))))/2
+		dy = max(int(centers[1].y-centers[0].y), int(centers[2].y-centers[0].y)) + int(math.Sqrt(float64(len(squares[2]))))/2
+
+		result = image.NewRGBA(image.Rect(0, 0, dx, dy))
+		for i := 0; i < dx; i++ {
+			for j := 0; j < dy; j++ {
+				result.Set(i, j, canvas.At(i, j))
+			}
+		}
 	}
-	return canvas
+	return result
+}
+
+func formValuesProcessing(init image.Image) {
+	img := imageToGrayScale(init)
+	makeBW(img)
+	printImage("kek.png", img)
+
+	for i := img.Bounds().Min.X; i < img.Bounds().Max.X; i++ {
+		for j := img.Bounds().Min.X; j < img.Bounds().Max.Y; j++ {
+
+		}
+	}
 }
 
 func main() {
-	img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/harderInitialImage.jpg")
-	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/photo.jpeg")
+	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/insane.jpeg")
+	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/harderInitialImage.jpg")
+	img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/photo.jpeg")
 	//img, _ := getImageFromFile("/Users/arseniyx92/go/src/fieldsRecognition/testForm.png")
 	img = photoToStandardDocument(img)
 	printImage("final.png", img)
+	formValuesProcessing(img)
 }
