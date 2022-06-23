@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/Arafatk/glot"
+
+	//"github.com/Arafatk/glot"
 	"math"
 	"math/rand"
 	"os"
@@ -20,12 +22,13 @@ const FIB_SIZE = 46
 const eps = 1e-9
 
 // Changable constants
+const PLOT_ON = false
 const BUTCH_SIZE = 100
 const ITERATIONS = 1000001
-const NUMBER_OF_TRAINING_SAMPLES = 20000
-const ITERATIONS_TO_SAVE = 100000
-const ITERATIONS_TO_PRINT = 1000
-const ITERATIONS_TO_PLOT_SUPPLEMENTION = 500
+const NUMBER_OF_TRAINING_SAMPLES = 30000
+const ITERATIONS_TO_SAVE = 10000
+const ITERATIONS_TO_PRINT = 500
+const ITERATIONS_TO_PLOT_SUPPLEMENTION = 50
 
 type Perceptron struct {
 	w [OBJECT_LENGTH]float64
@@ -81,7 +84,7 @@ func generateObject(v []int) *Object { // first value - digit, then goes 28x28 p
 func generatePerceptron() *Perceptron {
 	p := Perceptron{}
 	for i := 0; i < OBJECT_LENGTH; i++ {
-		p.w[i] = 0.
+		p.w[i] = rnd.Float64() * float64(rnd.Intn(1e4))
 	}
 	return &p
 }
@@ -269,9 +272,11 @@ func learn(model *Perceptron, digit int) {
 		}
 		if iteration%ITERATIONS_TO_SAVE == 0 {
 			os.WriteFile(fmt.Sprintf("perceptron%d.txt", digit), []byte(fmt.Sprintf("%v", model.w)), 0600)
-			err := createPlot(fmt.Sprintf("perceptron%d", digit))
-			if err != nil {
-				panic(err.Error())
+			if PLOT_ON {
+				err := createPlot(fmt.Sprintf("perceptron%d", digit))
+				if err != nil {
+					panic(err.Error())
+				}
 			}
 		}
 	}
@@ -279,26 +284,24 @@ func learn(model *Perceptron, digit int) {
 
 func main() {
 	parseObjectsFile()
-	trainParticularPerceptron(0, false)
-	//os.WriteFile("perceptron.txt", []byte(fmt.Sprintf("%v", p.w)), 0600)
-	//mistakes := 0
-	//for i := 0; i < NUMBER_OF_TRAINING_SAMPLES; i++ {
-	//	ok := "OK"
-	//	if (objsGlob[i].digit == 0) != (p.getSuggestion(objsGlob[i]) >= 0) {
-	//		ok = "WRONG!"
-	//		mistakes++
-	//	}
-	//	fmt.Printf("%f - %s\n", p.getSuggestion(objsGlob[i]), ok)
+	for digit := 0; digit <= 9; digit++ {
+		go trainParticularPerceptron(digit, false)
+	}
+	for {
+	}
+	//fmt.Println("MISTAKES: ")
+	//for digit := 0; digit <= 9; digit++ {
+	//	p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+	//	fmt.Printf("%d TRAIN: %d TEST: %d\n", digit, countMistakes(p, trainObjsGlob, digit), countMistakes(p, testObjsGlob, digit))
 	//}
-	//fmt.Println(mistakes)
 }
 
-var testingDataCorrectnessPlot []int
-var trainingDataCorrectnessPlot []int
+var testingDataCorrectnessPlot []float64
+var trainingDataCorrectnessPlot []float64
 
 func addPerceptronResultsToPlot(p *Perceptron, digit int) {
-	trainingDataCorrectnessPlot = append(trainingDataCorrectnessPlot, countMistakes(p, trainObjsGlob, digit))
-	testingDataCorrectnessPlot = append(testingDataCorrectnessPlot, countMistakes(p, testObjsGlob, digit))
+	trainingDataCorrectnessPlot = append(trainingDataCorrectnessPlot, 1.-float64(countMistakes(p, trainObjsGlob, digit))/float64(len(trainObjsGlob)))
+	testingDataCorrectnessPlot = append(testingDataCorrectnessPlot, 1.-float64(countMistakes(p, testObjsGlob, digit))/float64(len(testObjsGlob)))
 }
 
 func createPlot(modelName string) error {
@@ -311,13 +314,28 @@ func createPlot(modelName string) error {
 	if err != nil {
 		return err
 	}
-	return plot.SavePlot("plot.png")
+	return plot.SavePlot("accuracy.png")
 }
 
 func trainParticularPerceptron(digit int, createNew bool) {
 	p := generatePerceptron()
-	if createNew == true {
+	if createNew == false {
 		p = getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
 	}
 	learn(p, digit)
+}
+
+func getPrediction(p *Perceptron, image []int) int {
+	obj := generateObject(image)
+	maxProbability := 0.
+	matchingDigit := -1
+	for digit := 0; digit <= 9; digit++ {
+		p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+		curProbability := p.getSuggestion(obj)
+		if curProbability > maxProbability {
+			maxProbability = curProbability
+			matchingDigit = digit
+		}
+	}
+	return matchingDigit
 }
