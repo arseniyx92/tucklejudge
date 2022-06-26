@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fieldsRecognition/AI"
 	"fmt"
 	"github.com/gen2brain/go-fitz"
 	"golang.org/x/exp/constraints"
@@ -701,13 +702,24 @@ func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 }
 
 func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]int) {
-	img := image.NewGray(image.Rect(0, 0, rec.Size().X, rec.Size().Y))
+	dirX := []int{-1, 0, 0, 1}
+	dirY := []int{0, -1, 1, 0}
+	img := image.NewGray(image.Rect(0, 0, max(rec.Size().X, 28), max(rec.Size().Y, 28)))
 	for x := rec.Min.X; x <= rec.Max.X; x++ {
 		for y := rec.Min.Y; y <= rec.Max.Y; y++ {
 			img.SetGray(x-rec.Min.X, y-rec.Min.Y, init.GrayAt(x, y))
+			if init.GrayAt(x, y).Y == 255 {
+				for dir := 0; dir < 4; dir++ {
+					nx := x - rec.Min.X + dirX[dir]
+					ny := y - rec.Min.Y + dirY[dir]
+					if nx >= 0 && nx <= rec.Size().X && ny >= 0 && ny <= rec.Size().Y {
+						img.SetGray(nx, ny, color.Gray{Y: 255})
+					}
+				}
+			}
 		}
 	}
-	//printImage("kek0.png", img)
+	printImage("kek0.png", img)
 	dx := float64(rec.Size().X) / 28.
 	dy := float64(rec.Size().Y) / 28.
 	magnifier := Matrix{matrix: [][]float64{
@@ -716,7 +728,7 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 	}}
 	img = applyAffineTransformationOnGray(img, magnifier)
 
-	//printImage("kek1.png", img)
+	printImage("kek1.png", img)
 	for x := 0; x < 28; x++ {
 		for y := 0; y < 28; y++ {
 			result[1+x*28+y] = int(img.GrayAt(x, y).Y)
@@ -829,8 +841,8 @@ func fieldsRecognizer(img *image.Gray, kernel, minimumFieldSize int) (components
 			used[i][j] = -1
 		}
 	}
-	for i := lx; i <= rx; i++ {
-		for j := ly; j <= ry; j++ {
+	for j := ly; j <= ry; j++ {
+		for i := lx; i <= rx; i++ {
 			if used[i-lx][j-ly] != -1 || img.GrayAt(i, j).Y != 255 {
 				continue
 			}
@@ -924,7 +936,11 @@ func formValuesProcessing(init image.Image) {
 	otsuThreshold(img)
 	imgSize := (img.Bounds().Max.X - img.Bounds().Min.X + 1) * (img.Bounds().Max.Y - img.Bounds().Min.Y + 1)
 	fields := fieldsRecognizer(img, 6, int(float64(imgSize)*0.005))
+	perceptrons := AI.InitializePerceptronMesh()
 	for _, field := range fields {
+		if len(field) == 0 {
+			continue
+		}
 		minX := img.Bounds().Max.X
 		maxX := 0
 		minY := img.Bounds().Max.Y
@@ -935,10 +951,26 @@ func formValuesProcessing(init image.Image) {
 			minY = min(minY, v.second)
 			maxY = max(maxY, v.second)
 		}
-		for i := minX; i <= maxX; i++ {
-			for j := minY; j <= maxY; j++ {
-				img.SetGray(i, j, color.Gray{Y: 255})
+		blocks := 8
+		borders := int(float64(imgSize) * 0.000008)
+		if (maxY - minY) > int(float64(imgSize)*0.0001) {
+			blocks = 4
+			borders = int(float64(imgSize) * 0.00001)
+		}
+		dx := (maxX - minX) / blocks
+		for block := 0; block < blocks; block++ {
+			start := minX + dx*block
+			finish := minX + dx*(block+1)
+			digit := AI.GetPrediction(imageFragmentTo28x28(image.Rect(start+2*borders, minY+borders, finish-1, maxY-borders), img), perceptrons)
+			fmt.Println(digit)
+			for i := start; i < finish; i++ {
+				for j := minY; j <= maxY; j++ {
+					img.SetGray(i, j, color.Gray{Y: uint8(digit * 10)})
+				}
 			}
+			//if blocks == 8 && block == 1 {
+			//	return
+			//}
 		}
 	}
 
