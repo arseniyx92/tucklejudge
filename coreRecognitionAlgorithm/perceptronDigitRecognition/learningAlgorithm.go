@@ -1,11 +1,11 @@
-package main
+package AI
 
 import (
 	"bufio"
 	"fmt"
 	"github.com/Arafatk/glot"
 
-	//"github.com/Arafatk/glot"
+	"github.com/Arafatk/glot"
 	"math"
 	"math/rand"
 	"os"
@@ -325,12 +325,12 @@ func trainParticularPerceptron(digit int, createNew bool) {
 	learn(p, digit)
 }
 
-func getPrediction(p *Perceptron, image []int) int {
-	obj := generateObject(image)
+func getPrediction(p *Perceptron, image [OBJECT_LENGTH+1]int) int {
+	obj := generateObject(image[:])
 	maxProbability := 0.
 	matchingDigit := -1
 	for digit := 0; digit <= 9; digit++ {
-		p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+		p := getPerceptronFromFile(fmt.Sprintf("coreRecognitionAlgorithm/perceptrons/perceptron%d.txt", digit))
 		curProbability := p.getSuggestion(obj)
 		if curProbability > maxProbability {
 			maxProbability = curProbability
