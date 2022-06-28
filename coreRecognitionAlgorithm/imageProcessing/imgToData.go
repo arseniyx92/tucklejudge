@@ -19,6 +19,7 @@ import (
 
 const pixel = 1
 const MINIMUM_COMPONENT_SIZE = 50
+const DOC_SIZE = 1200
 
 type IntPair struct {
 	first, second int
@@ -445,7 +446,7 @@ func (m *Matrix) D2multToInt(arr []float64) (result []int) {
 	result = make([]int, 2)
 	for i := 0; i < len(m.matrix); i++ {
 		for k := 0; k < len(arr); k++ {
-			result[i] += int(m.matrix[i][k] * arr[k])
+			result[i] += int(math.Round(m.matrix[i][k] * arr[k]))
 		}
 	}
 	return result
@@ -505,8 +506,8 @@ func (m *Matrix) D3multToInt(arr []float64) (result []int) {
 		}
 	}
 	result = make([]int, 2)
-	result[0] = IntAbs(int(dimension3[0] / dimension3[2]))
-	result[1] = IntAbs(int(dimension3[1] / dimension3[2]))
+	result[0] = IntAbs(int(math.Round(dimension3[0] / dimension3[2])))
+	result[1] = IntAbs(int(math.Round(dimension3[1] / dimension3[2])))
 	return result
 }
 
@@ -528,11 +529,24 @@ func perspectiveTransformation(init image.Image, x, y float64) *image.RGBA {
 	return img
 }
 
+func resizeImage(init image.Image, a, b int) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, a, b))
+	for i := init.Bounds().Min.X; i <= init.Bounds().Max.X; i++ {
+		for j := init.Bounds().Min.Y; j <= init.Bounds().Max.Y; j++ {
+			img.Set(i, j, init.At(i, j))
+		}
+	}
+	return img
+}
+
 func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 	// making image twice smaller
 	var pic *image.RGBA
 	{
-		dx := max(float64(init.Bounds().Size().X)/800., float64(init.Bounds().Size().Y)/800.)
+		dx := max(float64(init.Bounds().Size().X)/DOC_SIZE, float64(init.Bounds().Size().Y)/DOC_SIZE)
+		if dx < 1 {
+			init = resizeImage(init, DOC_SIZE, DOC_SIZE)
+		}
 		transformation := generateAffineMatrixFor2DCords(
 			dx, 0, 0,
 			0, dx, 0,
@@ -598,7 +612,7 @@ func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 	}
 
 	// making STANDARD larger canvas for image TODO: rectify coz it's redundant
-	canvas := image.NewRGBA(image.Rect(0, 0, 800, 800))
+	canvas := image.NewRGBA(image.Rect(0, 0, DOC_SIZE, DOC_SIZE))
 	for i := pic.Bounds().Min.X; i <= pic.Bounds().Max.X; i++ {
 		for j := pic.Bounds().Min.Y; j <= pic.Bounds().Max.Y; j++ {
 			canvas.Set(i, j, pic.At(i, j))
@@ -627,7 +641,7 @@ func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 		cos := math.Sqrt(1 - sin*sin) // cos(90-A)
 		tg := sin / cos
 		transformation := generateAffineMatrixFor2DCords(
-			1, tg, -800*tg,
+			1, tg, -DOC_SIZE*tg,
 			0, 1, 0,
 		)
 		canvas = applyAffineTransformation(canvas, transformation)
@@ -701,25 +715,98 @@ func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 	return result
 }
 
-func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]int) {
+func augmentWhiteFiguresThickness(init *image.Gray) *image.Gray {
+	img := image.NewGray(init.Bounds())
 	dirX := []int{-1, 0, 0, 1}
 	dirY := []int{0, -1, 1, 0}
-	img := image.NewGray(image.Rect(0, 0, max(rec.Size().X, 28), max(rec.Size().Y, 28)))
-	for x := rec.Min.X; x <= rec.Max.X; x++ {
-		for y := rec.Min.Y; y <= rec.Max.Y; y++ {
-			img.SetGray(x-rec.Min.X, y-rec.Min.Y, init.GrayAt(x, y))
+	for x := init.Bounds().Min.X; x <= init.Bounds().Max.X; x++ {
+		for y := init.Bounds().Min.Y; y <= init.Bounds().Max.Y; y++ {
+			img.SetGray(x, y, init.GrayAt(x, y))
 			if init.GrayAt(x, y).Y == 255 {
 				for dir := 0; dir < 4; dir++ {
-					nx := x - rec.Min.X + dirX[dir]
-					ny := y - rec.Min.Y + dirY[dir]
-					if nx >= 0 && nx <= rec.Size().X && ny >= 0 && ny <= rec.Size().Y {
+					nx := x + dirX[dir]
+					ny := y + dirY[dir]
+					if nx >= 0 && nx <= init.Bounds().Size().X && ny >= 0 && ny <= init.Bounds().Size().Y {
 						img.SetGray(nx, ny, color.Gray{Y: 255})
 					}
 				}
 			}
 		}
 	}
-	printImage("kek0.png", img)
+	return img
+}
+
+func getWhiteComponents(img *image.Gray) (components [][]IntPair) {
+	lx := img.Bounds().Min.X
+	ly := img.Bounds().Min.Y
+	rx := img.Bounds().Max.X
+	ry := img.Bounds().Max.Y
+
+	// examining black components
+	var q Queue[IntPair]
+	dirX := []int{-1, 0, 0, 1}
+	dirY := []int{0, -1, 1, 0}
+	used := make([][]int, rx-lx+1)
+	for i := 0; i < rx-lx+1; i++ {
+		used[i] = make([]int, ry-ly+1)
+		for j := 0; j < ry-ly+1; j++ {
+			used[i][j] = -1
+		}
+	}
+	for j := ly; j <= ry; j++ {
+		for i := lx; i <= rx; i++ {
+			if used[i-lx][j-ly] != -1 || img.GrayAt(i, j).Y != 255 {
+				continue
+			}
+			comp := len(components)
+			components = append(components, []IntPair{})
+			components[comp] = append(components[comp], IntPair{i, j})
+			used[i-lx][j-ly] = comp
+			q.Push(IntPair{i, j})
+			for q.Size() > 0 {
+				pos, _ := q.Front()
+				q.Pop()
+				for dir := 0; dir < 4; dir++ {
+					nx := pos.first + dirX[dir]
+					ny := pos.second + dirY[dir]
+					if nx >= lx && nx <= rx && ny >= ly && ny <= ry && used[nx-lx][ny-ly] == -1 && img.GrayAt(nx, ny).Y == 255 {
+						used[nx-lx][ny-ly] = comp
+						q.Push(IntPair{nx, ny})
+						components[comp] = append(components[comp], IntPair{nx, ny})
+					}
+				}
+			}
+		}
+	}
+	return components
+}
+
+func saveOnlyMainComponent(img *image.Gray) {
+	components := getWhiteComponents(img)
+	maxSize := 0
+	for _, comp := range components {
+		maxSize = max(maxSize, len(comp))
+	}
+	for _, comp := range components {
+		if maxSize != len(comp) {
+			for _, pos := range comp {
+				img.SetGray(pos.first, pos.second, color.Gray{Y: 0})
+			}
+		}
+	}
+}
+
+func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]int) {
+	img := image.NewGray(image.Rect(0, 0, max(rec.Size().X, 28), max(rec.Size().Y, 28)))
+	for x := rec.Min.X; x <= rec.Max.X; x++ {
+		for y := rec.Min.Y; y <= rec.Max.Y; y++ {
+			img.SetGray(y-rec.Min.Y, x-rec.Min.X, init.GrayAt(x, y))
+		}
+	}
+	otsuThreshold(img)
+	saveOnlyMainComponent(img)
+	//img = augmentWhiteFiguresThickness(img)
+
 	dx := float64(rec.Size().X) / 28.
 	dy := float64(rec.Size().Y) / 28.
 	magnifier := Matrix{matrix: [][]float64{
@@ -728,13 +815,25 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 	}}
 	img = applyAffineTransformationOnGray(img, magnifier)
 
-	printImage("kek1.png", img)
+	//printImage("kek1.png", img)
+	result[0] = 1
 	for x := 0; x < 28; x++ {
 		for y := 0; y < 28; y++ {
 			result[1+x*28+y] = int(img.GrayAt(x, y).Y)
 		}
 	}
+	printArrayImage28x28("kek1.png", result)
 	return result
+}
+
+func printArrayImage28x28(filepath string, x [785]int) {
+	img := image.NewGray(image.Rect(0, 0, 28, 28))
+	for i := 0; i < 28; i++ {
+		for j := 0; j < 28; j++ {
+			img.SetGray(i, j, color.Gray{Y: uint8(x[i*28+j])})
+		}
+	}
+	printImage(filepath, img)
 }
 
 func gaussianBlur(img *image.Gray, kernel int) {
@@ -771,6 +870,69 @@ func gaussianBlur(img *image.Gray, kernel int) {
 				sum -= pref[maxX][minY-1]
 			}
 			img.SetGray(i, j, color.Gray{Y: uint8(float64(sum) / float64(cnt))})
+		}
+	}
+}
+
+func diminishBlackGradient(img *image.Gray) {
+	lx := img.Bounds().Min.X
+	ly := img.Bounds().Min.Y
+	rx := img.Bounds().Max.X
+	ry := img.Bounds().Max.Y
+	old := image.NewGray(img.Bounds())
+	var q Queue[IntPair]
+	used := make([][]bool, rx-lx+1)
+	for i := 0; i < rx-lx+1; i++ {
+		used[i] = make([]bool, ry-ly+1)
+	}
+	for i := lx; i <= rx; i++ {
+		for j := ly; j <= ry; j++ {
+			if img.GrayAt(i, j).Y <= 100 {
+				q.Push(IntPair{i, j})
+				used[i-lx][j-ly] = true
+			}
+			old.SetGray(i, j, img.GrayAt(i, j))
+		}
+	}
+	dirsX := []int{-1, 0, 0, 1}
+	dirsY := []int{0, -1, 1, 0}
+	for q.Size() > 1 {
+		pos, _ := q.Front()
+		q.Pop()
+		img.Set(pos.first, pos.second, color.Gray{Y: 0})
+		for dir := 0; dir < 4; dir++ {
+			nx := pos.first + dirsX[dir]
+			ny := pos.second + dirsY[dir]
+			if nx >= lx && nx <= rx && ny >= ly && ny <= ry && !used[nx-lx][ny-ly] && IntAbs(int(old.GrayAt(pos.first, pos.second).Y)-int(old.GrayAt(nx, ny).Y)) < 10 {
+				q.Push(IntPair{nx, ny})
+				used[nx-lx][ny-ly] = true
+			}
+		}
+	}
+}
+
+func noiseDecrease(img *image.Gray) {
+	lx := img.Bounds().Min.X
+	ly := img.Bounds().Min.Y
+	rx := img.Bounds().Max.X
+	ry := img.Bounds().Max.Y
+	dirsX := []int{-1, 0, 0, 1}
+	dirsY := []int{0, -1, 1, 0}
+	for i := lx; i <= lx+(rx-lx+1)/15; i++ {
+		for j := ly; j <= ry; j++ {
+			if img.GrayAt(i, j).Y == 255 {
+				cnt := 0
+				for dir := 0; dir < 4; dir++ {
+					nx := i + dirsX[dir]
+					ny := j + dirsY[dir]
+					if nx >= lx && nx <= rx && ny >= ly && ny <= ry && img.GrayAt(nx, ny).Y == 255 {
+						cnt++
+					}
+				}
+				if cnt < 2 {
+					img.SetGray(i, j, color.Gray{Y: 0})
+				}
+			}
 		}
 	}
 }
@@ -824,13 +986,13 @@ func otsuThreshold(img *image.Gray) {
 	}
 }
 
-func fieldsRecognizer(img *image.Gray, kernel, minimumFieldSize int) (components [][]IntPair) {
+func fieldsRecognizer(img *image.Gray, kernelX, kernelY, minimumFieldSize int) (components [][]IntPair) {
 	lx := img.Bounds().Min.X
 	ly := img.Bounds().Min.Y
 	rx := img.Bounds().Max.X
 	ry := img.Bounds().Max.Y
 
-	// examining black components
+	// examining white components
 	var q Queue[IntPair]
 	dirX := []int{-1, 0, 0, 1}
 	dirY := []int{0, -1, 1, 0}
@@ -848,6 +1010,7 @@ func fieldsRecognizer(img *image.Gray, kernel, minimumFieldSize int) (components
 			}
 			comp := len(components)
 			components = append(components, []IntPair{})
+			components[comp] = append(components[comp], IntPair{i, j})
 			used[i-lx][j-ly] = comp
 			q.Push(IntPair{i, j})
 			for q.Size() > 0 {
@@ -873,15 +1036,15 @@ func fieldsRecognizer(img *image.Gray, kernel, minimumFieldSize int) (components
 		accumulator := -1
 		counter := 0
 		for i := lx; i <= rx; i++ {
-			for k := 0; k < kernel && j-k >= ly; k++ {
-				if i-kernel >= 0 && used[i-kernel][j-k] != -1 {
+			for k := 0; k < kernelY && j-k >= ly; k++ {
+				if i-kernelX >= 0 && used[i-kernelX][j-k] != -1 {
 					counter--
 				}
 			}
 			if counter == 0 {
 				accumulator = -1
 			}
-			for k := 0; k < kernel && j-k >= ly; k++ {
+			for k := 0; k < kernelY && j-k >= ly; k++ {
 				if used[i][j-k] != -1 {
 					currentComponent, _ := snm.getParent(used[i][j-k])
 					if accumulator == -1 {
@@ -931,13 +1094,22 @@ func fieldsRecognizer(img *image.Gray, kernel, minimumFieldSize int) (components
 }
 
 func formValuesProcessing(init image.Image) {
+	// recognizing fields
 	img := imageToGrayScale(init)
 	inverseGray(img)
+	diminishBlackGradient(img)
 	otsuThreshold(img)
+	noiseDecrease(img)
 	imgSize := (img.Bounds().Max.X - img.Bounds().Min.X + 1) * (img.Bounds().Max.Y - img.Bounds().Min.Y + 1)
-	fields := fieldsRecognizer(img, 6, int(float64(imgSize)*0.005))
+	fields := fieldsRecognizer(img, int(float64(img.Bounds().Max.X-img.Bounds().Min.X+1)/85.), int(float64(img.Bounds().Max.X-img.Bounds().Min.Y+1)/100.), int(float64(imgSize)*0.005))
+
+	// backup of a noisy image
+	img = imageToGrayScale(init)
+	inverseGray(img)
+	printImage("kek.png", img)
+
 	perceptrons := AI.InitializePerceptronMesh()
-	for _, field := range fields {
+	for fieldID, field := range fields {
 		if len(field) == 0 {
 			continue
 		}
@@ -953,11 +1125,11 @@ func formValuesProcessing(init image.Image) {
 		}
 		blocks := 8
 		borders := int(float64(imgSize) * 0.000008)
-		if (maxY - minY) > int(float64(imgSize)*0.0001) {
+		if fieldID < 2 {
 			blocks = 4
 			borders = int(float64(imgSize) * 0.00001)
 		}
-		dx := (maxX - minX) / blocks
+		dx := int(math.Round(float64(maxX-minX) / float64(blocks)))
 		for block := 0; block < blocks; block++ {
 			start := minX + dx*block
 			finish := minX + dx*(block+1)
@@ -968,48 +1140,13 @@ func formValuesProcessing(init image.Image) {
 					img.SetGray(i, j, color.Gray{Y: uint8(digit * 10)})
 				}
 			}
-			//if blocks == 8 && block == 1 {
+			//if blocks == 8 && block == 4 {
 			//	return
 			//}
 		}
 	}
 
 	printImage("fields.png", img)
-	//
-	//perceptrons := AI.InitializePerceptronMesh()
-	//out := image.NewGray(img.Bounds())
-	//for i := img.Bounds().Min.X; i <= img.Bounds().Max.X; i += 10 {
-	//	for j := img.Bounds().Min.X; j <= img.Bounds().Max.Y; j += 10 {
-	//		//if i > 210 && j > 20 {
-	//		//	fmt.Println("kek")
-	//		//}
-	//		var verdicts [11]int
-	//		var last [11]int
-	//		for k := 10; k < 30 && k+i <= img.Bounds().Max.X && k+j <= img.Bounds().Max.Y; k += 2 {
-	//			digit := AI.GetPrediction(imageFragmentTo28x28(image.Rect(i, j, i+k, j+k), img), perceptrons)
-	//			verdicts[digit]++
-	//			last[digit] = k
-	//		}
-	//		best := IntPair{0, 10}
-	//		for digit := 0; digit <= 9; digit++ {
-	//			if best.first <= verdicts[digit] {
-	//				best = IntPair{verdicts[digit], digit}
-	//			}
-	//		}
-	//		if best.second != 10 && best.first > 2 {
-	//			for k := 0; k <= last[best.second]; k++ {
-	//				for k1 := 0; k1 <= last[best.second]; k1++ {
-	//					out.SetGray(i+k, j+k1, color.Gray{Y: 10 * uint8(best.second)})
-	//				}
-	//			}
-	//		}
-	//		//if i > 210 && j > 20 {
-	//		//	printImage("kek0.png", out)
-	//		//	return
-	//		//}
-	//	}
-	//}
-	//printImage("kek0.png", out)
 }
 
 func main() {
@@ -1022,4 +1159,8 @@ func main() {
 	img = photoToStandardDocument(img)
 	printImage("final.png", img)
 	formValuesProcessing(img)
+	//init, _ := getImageFromFile("img.png")
+	//img := imageToGrayScale(init)
+	//perceptrons := AI.InitializePerceptronMesh()
+	//fmt.Println(AI.GetPrediction(imageFragmentTo28x28(image.Rect(0, 0, 28, 28), img), perceptrons))
 }
