@@ -1,11 +1,12 @@
-package AI
+package main
 
 import (
 	"bufio"
 	"fmt"
 	"github.com/Arafatk/glot"
-
-	"github.com/Arafatk/glot"
+	"image"
+	"image/color"
+	"image/png"
 	"math"
 	"math/rand"
 	"os"
@@ -17,25 +18,27 @@ import (
 
 // Pictures will be 28x28 so object lenght is 784
 const OBJECT_LENGTH = 785
-const DATA_SIZE = 42000
+const DATA_SIZE = 42000 * COPIES
 const FIB_SIZE = 46
 const eps = 1e-9
 
 // Changable constants
-const PLOT_ON = false
+const COPIES = 2
 const BUTCH_SIZE = 100
 const ITERATIONS = 1000001
-const NUMBER_OF_TRAINING_SAMPLES = 30000
+const NUMBER_OF_TRAINING_SAMPLES = 30000 * COPIES
 const ITERATIONS_TO_SAVE = 10000
 const ITERATIONS_TO_PRINT = 500
 const ITERATIONS_TO_PLOT_SUPPLEMENTION = 50
+
+var PLOT_ON = false
 
 type Perceptron struct {
 	w [OBJECT_LENGTH]float64
 }
 
 type Object struct {
-	x     [OBJECT_LENGTH]float64
+	x     [OBJECT_LENGTH]int
 	digit int
 }
 
@@ -45,46 +48,145 @@ var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func parseObjectsFile() {
 	trainObjsGlob = make([]*Object, NUMBER_OF_TRAINING_SAMPLES)
-	testObjsGlob = make([]*Object, DATA_SIZE-NUMBER_OF_TRAINING_SAMPLES-1)
+	testObjsGlob = make([]*Object, DATA_SIZE-NUMBER_OF_TRAINING_SAMPLES)
 	f, err := os.Open("train.csv")
 	if err != nil {
 		panic(err.Error())
 	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
-	for i := 0; i < DATA_SIZE; i++ {
+	scanner.Scan()
+	for i := 0; i < DATA_SIZE; i += COPIES {
 		x := make([]int, OBJECT_LENGTH)
 		scanner.Scan()
-		if i == 0 {
-			continue
-		}
 		s := strings.Split(scanner.Text(), ",")
 		for j := 0; j < OBJECT_LENGTH; j++ {
 			x[j], _ = strconv.Atoi(s[j])
 		}
-		if i < NUMBER_OF_TRAINING_SAMPLES+1 {
-			trainObjsGlob[i-1] = generateObject(x)
+		if i < NUMBER_OF_TRAINING_SAMPLES {
+			trainObjsGlob[i] = generateObject(x, true)
+			for k := 0; k < COPIES/2; k++ {
+				trainObjsGlob[i] = rotateAlphaDeg(trainObjsGlob[i], -5)
+			}
+			for k := 1; k < COPIES; k++ {
+				trainObjsGlob[i+k] = rotateAlphaDeg(trainObjsGlob[i+k-1], 5)
+			}
 		} else {
-			testObjsGlob[i-NUMBER_OF_TRAINING_SAMPLES-1] = generateObject(x)
+			testObjsGlob[i-NUMBER_OF_TRAINING_SAMPLES] = generateObject(x, true)
+			for k := 0; k < COPIES/2; k++ {
+				testObjsGlob[i-NUMBER_OF_TRAINING_SAMPLES] = rotateAlphaDeg(testObjsGlob[i-NUMBER_OF_TRAINING_SAMPLES], -5)
+			}
+			for k := 1; k < COPIES; k++ {
+				testObjsGlob[i-NUMBER_OF_TRAINING_SAMPLES+k] = rotateAlphaDeg(testObjsGlob[i-NUMBER_OF_TRAINING_SAMPLES+k-1], 5)
+			}
 		}
 	}
 }
 
-func generateObject(v []int) *Object { // first value - digit, then goes 28x28 picture
+func degreeToRadian(deg float64) float64 {
+	return deg * math.Pi / 180.
+}
+
+func rotateAlphaDeg(init *Object, deg float64) *Object {
+	rad := degreeToRadian(deg)
+	cos := math.Cos(rad)
+	sin := math.Sin(rad)
+
+	obj := Object{
+		digit: init.digit,
+	}
+	for i := 1; i < OBJECT_LENGTH; i++ {
+		x := (i - 1) / 28
+		y := i - 1 - 28*x
+		nx := int(math.Round(cos*float64(x) + sin*float64(y)))
+		ny := int(math.Round(-sin*float64(x) + cos*float64(y)))
+		ind := 1 + nx*28 + ny
+		if ind >= 1 && ind < OBJECT_LENGTH {
+			obj.x[i] = init.x[ind]
+		}
+	}
+	//if obj.digit == 3 && deg == 20 {
+	//	printObjectImage28x28(&obj)
+	//	os.Exit(0)
+	//}
+	return &obj
+}
+
+func generateObject(v []int, threshold bool) *Object { // first value - digit, then goes 28x28 picture
 	obj := Object{
 		digit: v[0],
 	}
-	obj.x[0] = 1
-	for i := 1; i < OBJECT_LENGTH; i++ {
-		obj.x[i] = float64(v[i])
+	obj.x[0] = 1 // bias weight
+	if threshold {
+		colors := make([]int, 256)
+		pref := make([]int, 256)
+		mean := make([]int, 256)
+		for i := 1; i < OBJECT_LENGTH; i++ {
+			colors[v[i]]++
+		}
+		for i, v := range colors {
+			pref[i] = v
+			mean[i] = v * i
+			if i != 0 {
+				pref[i] += pref[i-1]
+				mean[i] += mean[i-1]
+			}
+		}
+		maxx := 0.
+		bestInd := 0
+		sz := 28 * 28
+		for i, _ := range colors {
+			if i == 255 {
+				break
+			}
+			Wb := float64(pref[i]) / float64(sz)
+			Ww := float64(pref[255]-pref[i]) / float64(sz)
+			ub := float64(mean[i]) / float64(pref[i])
+			uw := float64(mean[255]-mean[i]) / float64(pref[255]-pref[i])
+			gamma := Wb * Ww * (uw - ub) * (uw - ub)
+			if maxx < gamma {
+				maxx = gamma
+				bestInd = i
+			}
+		}
+		for i := 1; i < OBJECT_LENGTH; i++ {
+			if v[i] <= bestInd {
+				obj.x[i] = 0
+			} else {
+				obj.x[i] = 255
+			}
+		}
+	} else {
+		for i := 1; i < OBJECT_LENGTH; i++ {
+			obj.x[i] = v[i]
+		}
 	}
 	return &obj
 }
 
-func generatePerceptron() *Perceptron {
+func printImage(filepath string, img image.Image) {
+	if _, err := os.Stat(filepath); err == nil {
+		os.Remove(filepath)
+	}
+	f, _ := os.Create(filepath)
+	_ = png.Encode(f, img)
+}
+
+func printObjectImage28x28(obj *Object) {
+	img := image.NewGray(image.Rect(0, 0, 28, 28))
+	for i := 0; i < 28; i++ {
+		for j := 0; j < 28; j++ {
+			img.SetGray(i, j, color.Gray{Y: uint8(obj.x[i*28+j])})
+		}
+	}
+	printImage(fmt.Sprintf("pic%d.png", obj.digit), img)
+}
+
+func generatePerceptron(randChan chan int) *Perceptron {
 	p := Perceptron{}
+	// filling with random weights
 	for i := 0; i < OBJECT_LENGTH; i++ {
-		p.w[i] = rnd.Float64() * float64(rnd.Intn(1e4))
+		p.w[i] = rnd.Float64() * float64(<-randChan)
 	}
 	return &p
 }
@@ -124,7 +226,7 @@ func getPerceptronFromFile(filepath string) *Perceptron {
 func (p *Perceptron) getSuggestion(obj *Object) float64 {
 	dotProduct := float64(0)
 	for i := 0; i < OBJECT_LENGTH; i++ {
-		dotProduct += p.w[i] * obj.x[i]
+		dotProduct += p.w[i] * float64(obj.x[i])
 	}
 	return dotProduct
 }
@@ -150,7 +252,7 @@ func evaluateResultCorrectness(objs []*Object, model *Perceptron, grad []float64
 	for i := 0; i < BUTCH_SIZE; i++ {
 		suggestion := 0.
 		for j := 0; j < OBJECT_LENGTH; j++ {
-			suggestion += model.w[j] * objs[i].x[j]
+			suggestion += model.w[j] * float64(objs[i].x[j])
 		}
 		if (objs[i].digit == digit) != (suggestion >= 0.) {
 			results = append(results, math.Abs(suggestion))
@@ -172,6 +274,8 @@ func learn(model *Perceptron, digit int) {
 	for i := 0; i < NUMBER_OF_TRAINING_SAMPLES; i++ {
 		if trainObjsGlob[i].digit == digit {
 			currentTypeObjs = append(currentTypeObjs, trainObjsGlob[i])
+			//printObjectImage28x28(trainObjsGlob[i])
+			//return
 		}
 	}
 
@@ -187,13 +291,14 @@ func learn(model *Perceptron, digit int) {
 	for iteration := 0; iteration < ITERATIONS; iteration++ {
 		// getting a batch of objects
 		objs := make([]*Object, BUTCH_SIZE)
-		for i := 0; i < BUTCH_SIZE/2; i++ {
-			objs[i] = trainObjsGlob[rnd.Intn(len(trainObjsGlob))]
+		for i := 0; i < BUTCH_SIZE/3; i++ {
+			objs[i] = currentTypeObjs[(BUTCH_SIZE*iteration+i)%len(currentTypeObjs)] // rnd.Intn(len(currentTypeObjs))
 		}
-		for i := BUTCH_SIZE / 2; i < BUTCH_SIZE; i++ {
-			objs[i] = currentTypeObjs[rnd.Intn(len(currentTypeObjs))]
+		for i := BUTCH_SIZE / 3; i < BUTCH_SIZE; i++ {
+			objs[i] = trainObjsGlob[(BUTCH_SIZE*iteration+i-BUTCH_SIZE/3)%len(trainObjsGlob)] // rnd.Intn(len(trainObjsGlob))
 		}
-		rnd.Shuffle(len(objs), func(i, j int) { objs[i], objs[j] = objs[j], objs[i] })
+		//rnd.Shuffle(len(objs), func(i, j int) { objs[i], objs[j] = objs[j], objs[i] })
+
 		// generating answer for each one
 		mistakes := 0
 		currentGrad := make([]float64, OBJECT_LENGTH)
@@ -206,14 +311,14 @@ func learn(model *Perceptron, digit int) {
 					sign = float64(-1)
 				}
 				for j := 0; j < OBJECT_LENGTH; j++ {
-					currentGrad[j] += sign * objs[i].x[j]
+					currentGrad[j] += sign * float64(objs[i].x[j])
 				}
 			}
 		}
 		sqrLenCurrentGrad := float64(0)
 		if mistakes > 0 {
 			for i := 0; i < OBJECT_LENGTH; i++ {
-				currentGrad[i] /= float64(mistakes)
+				//currentGrad[i] /= float64(mistakes)
 				sqrLenCurrentGrad += currentGrad[i] * currentGrad[i]
 			}
 		}
@@ -238,23 +343,21 @@ func learn(model *Perceptron, digit int) {
 
 		// choosing best learning rate (step length)
 		l, r := 0., .5
-		pi := fibs[FIB_SIZE-2] / fibs[FIB_SIZE-1]
-		m1, m2 := l+(r-l)*pi, r-(r-l)*pi
+		m1, m2 := l+(r-l)*(fibs[FIB_SIZE-3]/fibs[FIB_SIZE-1]), l+(r-l)*(fibs[FIB_SIZE-2]/fibs[FIB_SIZE-1])
 		f1 := evaluateResultCorrectness(objs, model, currentD, m1, digit)
 		f2 := evaluateResultCorrectness(objs, model, currentD, m2, digit)
-		for i := FIB_SIZE - 3; i > 0; i-- {
-			pi = fibs[i] / fibs[i+1]
+		for i := FIB_SIZE - 2; i > 1; i-- {
 			if f1 > f2 {
 				l = m1
 				m1 = m2
 				f1 = f2
-				m2 = r - (r-l)*pi
+				m2 = l + (r-l)*(fibs[i-1]/fibs[i])
 				f2 = evaluateResultCorrectness(objs, model, currentD, m2, digit)
 			} else {
 				r = m2
 				m2 = m1
 				f2 = f1
-				m1 = l + (r-l)*pi
+				m1 = l + (r-l)*(fibs[i-2]/fibs[i])
 				f1 = evaluateResultCorrectness(objs, model, currentD, m1, digit)
 			}
 		}
@@ -268,7 +371,7 @@ func learn(model *Perceptron, digit int) {
 			addPerceptronResultsToPlot(model, digit)
 		}
 		if iteration%ITERATIONS_TO_PRINT == 0 {
-			fmt.Println("Iteration ", iteration, ") error value: ", f1)
+			fmt.Println("Iteration", iteration, " of digit:", digit, ")     error value: ", countMistakes(model, trainObjsGlob, digit))
 		}
 		if iteration%ITERATIONS_TO_SAVE == 0 {
 			os.WriteFile(fmt.Sprintf("perceptron%d.txt", digit), []byte(fmt.Sprintf("%v", model.w)), 0600)
@@ -284,16 +387,26 @@ func learn(model *Perceptron, digit int) {
 
 func main() {
 	parseObjectsFile()
-	for digit := 0; digit <= 9; digit++ {
-		go trainParticularPerceptron(digit, false)
-	}
-	for {
-	}
-	//fmt.Println("MISTAKES: ")
+
+	// train particular perceptron
+	//PLOT_ON = true
+	//trainParticularPerceptron(2, false)
+
+	//train all perceptrons
+	//randChan := make(chan int)
 	//for digit := 0; digit <= 9; digit++ {
-	//	p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
-	//	fmt.Printf("%d TRAIN: %d TEST: %d\n", digit, countMistakes(p, trainObjsGlob, digit), countMistakes(p, testObjsGlob, digit))
+	//	go trainParticularPerceptron(digit, false, randChan)
 	//}
+	//for {
+	//	randChan <- rnd.Intn(1e4)
+	//}
+
+	//check current perceptrons results
+	fmt.Println("MISTAKES: ")
+	for digit := 0; digit <= 9; digit++ {
+		p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+		fmt.Printf("%d TRAIN: %d TEST: %d\n", digit, countMistakes(p, trainObjsGlob, digit), countMistakes(p, testObjsGlob, digit))
+	}
 }
 
 var testingDataCorrectnessPlot []float64
@@ -317,21 +430,28 @@ func createPlot(modelName string) error {
 	return plot.SavePlot("accuracy.png")
 }
 
-func trainParticularPerceptron(digit int, createNew bool) {
-	p := generatePerceptron()
+func trainParticularPerceptron(digit int, createNew bool, randChan chan int) {
+	p := generatePerceptron(randChan)
 	if createNew == false {
 		p = getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
 	}
 	learn(p, digit)
 }
 
-func getPrediction(p *Perceptron, image [OBJECT_LENGTH+1]int) int {
-	obj := generateObject(image[:])
-	maxProbability := 0.
-	matchingDigit := -1
+func InitializePerceptronMesh() [10]*Perceptron {
+	var perceptrons [10]*Perceptron
 	for digit := 0; digit <= 9; digit++ {
-		p := getPerceptronFromFile(fmt.Sprintf("coreRecognitionAlgorithm/perceptrons/perceptron%d.txt", digit))
-		curProbability := p.getSuggestion(obj)
+		perceptrons[digit] = getPerceptronFromFile(fmt.Sprintf("perceptrons/perceptron%d.txt", digit))
+	}
+	return perceptrons
+}
+
+func GetPrediction(image [OBJECT_LENGTH]int, perceptrons [10]*Perceptron) int {
+	obj := generateObject(image[:], true)
+	maxProbability := 0.
+	matchingDigit := 10
+	for digit := 0; digit <= 9; digit++ {
+		curProbability := perceptrons[digit].getSuggestion(obj)
 		if curProbability > maxProbability {
 			maxProbability = curProbability
 			matchingDigit = digit
@@ -339,3 +459,15 @@ func getPrediction(p *Perceptron, image [OBJECT_LENGTH+1]int) int {
 	}
 	return matchingDigit
 }
+
+//MISTAKES:
+//0 TRAIN: 1439 TEST: 649
+//1 TRAIN: 956 TEST: 427
+//2 TRAIN: 6551 TEST: 2718
+//3 TRAIN: 7168 TEST: 2908
+//4 TRAIN: 2511 TEST: 1076
+//5 TRAIN: 8214 TEST: 3306
+//6 TRAIN: 3201 TEST: 1335
+//7 TRAIN: 3322 TEST: 1350
+//8 TRAIN: 10889 TEST: 4440
+//9 TRAIN: 6051 TEST: 2360
