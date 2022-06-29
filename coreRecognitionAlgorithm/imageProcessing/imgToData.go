@@ -683,15 +683,18 @@ func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 			centers[i] = Point{meanX, meanY}
 		}
 		zeroPoint := centers[0]
+		shift := int(min(min(centers[0].x-1, centers[0].y-1), math.Sqrt(float64(len(squares[0])))))
 		if centers[1].x < zeroPoint.x {
 			zeroPoint = centers[1]
+			shift = int(min(min(centers[1].x-1, centers[1].y-1), math.Sqrt(float64(len(squares[1])))))
 		}
 		if centers[2].x < zeroPoint.x {
 			zeroPoint = centers[2]
+			shift = int(min(min(centers[2].x-1, centers[2].y-1), math.Sqrt(float64(len(squares[2])))))
 		}
 		transformation := generateAffineMatrixFor2DCords(
-			1, 0, zeroPoint.x,
-			0, 1, zeroPoint.y,
+			1, 0, zeroPoint.x-float64(shift),
+			0, 1, zeroPoint.y-float64(shift),
 		)
 		canvas = applyAffineTransformation(canvas, transformation)
 
@@ -702,8 +705,8 @@ func photoToStandardDocument(init image.Image) (result *image.RGBA) {
 		} else if zeroPoint == centers[2] {
 			centers[0], centers[2] = centers[2], centers[0]
 		}
-		dx = max(int(centers[2].x-centers[0].x), int(centers[1].x-centers[0].x)) + int(math.Sqrt(float64(len(squares[1]))))/2
-		dy = max(int(centers[1].y-centers[0].y), int(centers[2].y-centers[0].y)) + int(math.Sqrt(float64(len(squares[2]))))/2
+		dx = max(int(centers[2].x-centers[0].x), int(centers[1].x-centers[0].x)) + int(math.Sqrt(float64(len(squares[1]))))/2 + shift
+		dy = max(int(centers[1].y-centers[0].y), int(centers[2].y-centers[0].y)) + int(math.Sqrt(float64(len(squares[2]))))/2 + shift
 
 		result = image.NewRGBA(image.Rect(0, 0, dx, dy))
 		for i := 0; i < dx; i++ {
@@ -744,8 +747,8 @@ func getWhiteComponents(img *image.Gray) (components [][]IntPair) {
 
 	// examining black components
 	var q Queue[IntPair]
-	dirX := []int{-1, 0, 0, 1}
-	dirY := []int{0, -1, 1, 0}
+	dirX := []int{-1, 0, 0, 1, -1, -1, 1, 1}
+	dirY := []int{0, -1, 1, 0, -1, 1, -1, 1}
 	used := make([][]int, rx-lx+1)
 	for i := 0; i < rx-lx+1; i++ {
 		used[i] = make([]int, ry-ly+1)
@@ -766,7 +769,7 @@ func getWhiteComponents(img *image.Gray) (components [][]IntPair) {
 			for q.Size() > 0 {
 				pos, _ := q.Front()
 				q.Pop()
-				for dir := 0; dir < 4; dir++ {
+				for dir := 0; dir < 8; dir++ {
 					nx := pos.first + dirX[dir]
 					ny := pos.second + dirY[dir]
 					if nx >= lx && nx <= rx && ny >= ly && ny <= ry && used[nx-lx][ny-ly] == -1 && img.GrayAt(nx, ny).Y == 255 {
@@ -800,7 +803,7 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 	img := image.NewGray(image.Rect(0, 0, max(rec.Size().X, 28), max(rec.Size().Y, 28)))
 	for x := rec.Min.X; x <= rec.Max.X; x++ {
 		for y := rec.Min.Y; y <= rec.Max.Y; y++ {
-			img.SetGray(y-rec.Min.Y, x-rec.Min.X, init.GrayAt(x, y))
+			img.SetGray(x-rec.Min.X, y-rec.Min.Y, init.GrayAt(x, y))
 		}
 	}
 	otsuThreshold(img)
@@ -830,7 +833,7 @@ func printArrayImage28x28(filepath string, x [785]int) {
 	img := image.NewGray(image.Rect(0, 0, 28, 28))
 	for i := 0; i < 28; i++ {
 		for j := 0; j < 28; j++ {
-			img.SetGray(i, j, color.Gray{Y: uint8(x[i*28+j])})
+			img.SetGray(i, j, color.Gray{Y: uint8(x[1+i*28+j])})
 		}
 	}
 	printImage(filepath, img)
@@ -887,7 +890,7 @@ func diminishBlackGradient(img *image.Gray) {
 	}
 	for i := lx; i <= rx; i++ {
 		for j := ly; j <= ry; j++ {
-			if img.GrayAt(i, j).Y <= 100 {
+			if img.GrayAt(i, j).Y <= 50 {
 				q.Push(IntPair{i, j})
 				used[i-lx][j-ly] = true
 			}
@@ -916,17 +919,19 @@ func noiseDecrease(img *image.Gray) {
 	ly := img.Bounds().Min.Y
 	rx := img.Bounds().Max.X
 	ry := img.Bounds().Max.Y
-	dirsX := []int{-1, 0, 0, 1}
-	dirsY := []int{0, -1, 1, 0}
-	for i := lx; i <= lx+(rx-lx+1)/15; i++ {
+	dirsX := []int{-1, 0, 0, 1, 1, 1, -1, -1}
+	dirsY := []int{0, -1, 1, 0, 1, -1, 1, -1}
+	for i := lx; i <= lx+(rx-lx+1)/8; i++ {
 		for j := ly; j <= ry; j++ {
 			if img.GrayAt(i, j).Y == 255 {
 				cnt := 0
-				for dir := 0; dir < 4; dir++ {
-					nx := i + dirsX[dir]
-					ny := j + dirsY[dir]
-					if nx >= lx && nx <= rx && ny >= ly && ny <= ry && img.GrayAt(nx, ny).Y == 255 {
-						cnt++
+				for depth := 1; depth < 2; depth++ {
+					for dir := 0; dir < 4; dir++ {
+						nx := i + depth*dirsX[dir]
+						ny := j + depth*dirsY[dir]
+						if nx >= lx && nx <= rx && ny >= ly && ny <= ry && img.GrayAt(nx, ny).Y == 255 {
+							cnt++
+						}
 					}
 				}
 				if cnt < 2 {
@@ -1029,7 +1034,7 @@ func fieldsRecognizer(img *image.Gray, kernelX, kernelY, minimumFieldSize int) (
 		}
 	}
 
-	// merging near lieing black components
+	// merging near lying black components
 	var snm Dsu
 	snm.initializeDsu(len(components))
 	for j := ly; j <= ry; j++ {
@@ -1100,13 +1105,14 @@ func formValuesProcessing(init image.Image) {
 	diminishBlackGradient(img)
 	otsuThreshold(img)
 	noiseDecrease(img)
+	printImage("kek.png", img)
+
 	imgSize := (img.Bounds().Max.X - img.Bounds().Min.X + 1) * (img.Bounds().Max.Y - img.Bounds().Min.Y + 1)
-	fields := fieldsRecognizer(img, int(float64(img.Bounds().Max.X-img.Bounds().Min.X+1)/85.), int(float64(img.Bounds().Max.X-img.Bounds().Min.Y+1)/100.), int(float64(imgSize)*0.005))
+	fields := fieldsRecognizer(img, int(float64(img.Bounds().Max.X-img.Bounds().Min.X+1)/85.), int(float64(img.Bounds().Max.X-img.Bounds().Min.Y+1)/100.), int(float64(imgSize)*0.01))
 
 	// backup of a noisy image
 	img = imageToGrayScale(init)
 	inverseGray(img)
-	printImage("kek.png", img)
 
 	perceptrons := AI.InitializePerceptronMesh()
 	for fieldID, field := range fields {
@@ -1140,9 +1146,9 @@ func formValuesProcessing(init image.Image) {
 					img.SetGray(i, j, color.Gray{Y: uint8(digit * 10)})
 				}
 			}
-			//if blocks == 8 && block == 4 {
-			//	return
-			//}
+			if blocks == 4 && block == 2 {
+				return
+			}
 		}
 	}
 
@@ -1159,7 +1165,8 @@ func main() {
 	img = photoToStandardDocument(img)
 	printImage("final.png", img)
 	formValuesProcessing(img)
-	//init, _ := getImageFromFile("img.png")
+
+	//init, _ := getImageFromFile("img_1.png")
 	//img := imageToGrayScale(init)
 	//perceptrons := AI.InitializePerceptronMesh()
 	//fmt.Println(AI.GetPrediction(imageFragmentTo28x28(image.Rect(0, 0, 28, 28), img), perceptrons))
