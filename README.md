@@ -1,4 +1,4 @@
-![fields_recognition](README_src/fields_recognition.png =200x)
+![<img src="README_src/fields_recognition.png" width="250"/>](README_src/fields_recognition.png)
 
 
-![sharpness_components_recognition](README_src/nice_pic.jpeg =200x)
+![sharpness_components_recognition](.README_src/nice_pic.jpeg)
