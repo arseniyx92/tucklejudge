@@ -19,7 +19,9 @@ func generateCookie(w http.ResponseWriter, username string) {
 		Expires: time.Now().Add(48*time.Hour),
 		Path: "/",
 	}
+	utils.UserFilesMutex.Lock()
 	utils.LoginCookieStorage.AddNode(key, username)
+	utils.UserFilesMutex.Unlock()
 	http.SetCookie(w, &cookie)
 }
 
@@ -188,7 +190,7 @@ func AuthorizationRegHandler(w http.ResponseWriter, r *http.Request) {
 	newUser.Grade = r.FormValue("grade")
 	newUser.Letter = r.FormValue("letter")
 	newUser.Password = fmt.Sprintf("%x", createPasswordHash(r.FormValue("password")))
-	err := newUser.Save()
+	err := newUser.Create()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

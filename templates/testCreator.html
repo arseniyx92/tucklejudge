@@ -4,11 +4,17 @@
 
 <label for="testName">Test name:</label>
 <input type="text" name="testName" id="testName" placeholder="ThrillingTest"><br>
+<label for="numberOfQuestions">Number of questions</label>
+<input type="number" name="numberOfQuestions" id="numberOfQuestions" value="30" min="1" max="30"><br>
 
 <h3>Questions (maximum answer length is 15) </h3>
+<p>Index of question | Answer | Points | Punishment for one mistake</p><br>
 {{range .Questions}}
 <label for="question{{.}}">{{.}}. </label>
-<input type="text" name="question{{.}}" maxlength = "15"><br>
+<input type="text" name="answer{{.}}" maxlength = "15">
+<input type="number" name="points{{.}}" min="0" max="100" value="1">
+<input type="number" name="punishment{{.}}" min="0" max="100" value="1">
+<br>
 {{end}}
 
 <input type="submit" value="Save!">

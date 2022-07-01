@@ -34,7 +34,20 @@ func Init() {
 	}
 }
 
+func GetUsername(r *http.Request) (string, error) {
+	c, err := r.Cookie("user_info")
+	if err != nil {
+		return "", err
+	}
+	UserFilesMutex.Lock()
+	username, _ := LoginCookieStorage.ReturnNodeValue(c.Value)
+	UserFilesMutex.Unlock()
+	return username, nil
+}
+
 func CheckForValidStandardAccess(w http.ResponseWriter, r *http.Request) bool {
+	UserFilesMutex.Lock()
+	defer UserFilesMutex.Unlock()
 	c, err := r.Cookie("user_info")
 	if err != nil || LoginCookieStorage.CheckNode(c.Value) == false {
 		http.Redirect(w, r, "/login", http.StatusFound)
@@ -44,6 +57,8 @@ func CheckForValidStandardAccess(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func CheckForAuthorizationCapability(w http.ResponseWriter, r *http.Request) bool {
+	UserFilesMutex.Lock()
+	defer UserFilesMutex.Unlock()
 	c, err := r.Cookie("user_info")
 	if err == nil && LoginCookieStorage.CheckNode(c.Value) == true {
 		http.Redirect(w, r, "/", http.StatusFound)
@@ -68,9 +83,10 @@ type User struct {
 	Grade string
 	Letter string
 	Password string
+	Tests []string
 }
 
-func (rg *User) Save() error {
+func (rg *User) Create() error {
 	UserFilesMutex.Lock()
 	defer UserFilesMutex.Unlock()
 
@@ -107,8 +123,28 @@ func (rg *User) Save() error {
 		return err
 	}
 
+	// merging test ids to one string
+	tests_string := ""
+	for _, s := range rg.Tests {
+		tests_string += s + " "
+	}
+
 	// creating a new file for the user
-	return os.WriteFile("authentication/users/"+rg.Username+".txt", []byte(fmt.Sprintf("ID: %s\nUsername: %s\nName: %s\nSurname: %s\nIs teacher: %v\nGrade: %s\nLetter: %s\nPassword: %s\n", rg.ID, rg.Username, rg.Name, rg.Surname, rg.Teacher, rg.Grade, rg.Letter, rg.Password)), 0600)
+	return os.WriteFile("authentication/users/"+rg.Username+".txt", []byte(fmt.Sprintf("ID: %s\nUsername: %s\nName: %s\nSurname: %s\nIs teacher: %v\nGrade: %s\nLetter: %s\nPassword: %s\nTests: %s", rg.ID, rg.Username, rg.Name, rg.Surname, rg.Teacher, rg.Grade, rg.Letter, rg.Password, tests_string)), 0600)
+}
+
+func (rg *User) Save() error {
+	UserFilesMutex.Lock()
+	defer UserFilesMutex.Unlock()
+
+	// merging test IDs to one string
+	tests_string := ""
+	for _, s := range rg.Tests {
+		tests_string += s + " "
+	}
+
+	// updating user's file
+	return os.WriteFile("authentication/users/"+rg.Username+".txt", []byte(fmt.Sprintf("ID: %s\nUsername: %s\nName: %s\nSurname: %s\nIs teacher: %v\nGrade: %s\nLetter: %s\nPassword: %s\nTests: %s", rg.ID, rg.Username, rg.Name, rg.Surname, rg.Teacher, rg.Grade, rg.Letter, rg.Password, tests_string)), 0600)
 }
 
 func GetAccauntInfo(username string) (*User, error) {
@@ -144,14 +180,111 @@ func GetAccauntInfo(username string) (*User, error) {
 	user.Letter = scanner.Text()[len("Letter: "):]
 	scanner.Scan()
 	user.Password = scanner.Text()[len("Password: "):]
+	scanner.Scan()
+	tests_string := string(scanner.Text()[len("Tests: "):])
+	for i := 0; i < len(tests_string); i += 5 {
+		str := ""
+		for j := 0; j < 4; j++ {
+			str += string(tests_string[i+j])
+		}
+		user.Tests = append(user.Tests, str)
+	}
 
 	return user, scanner.Err()
 }
 
+type Question struct {
+	Answer string
+	Points int
+	Punishment int
+}
 
+type Test struct {
+	ID string
+	Name string
+	Questions []Question
+}
 
+var TestFilesMutex sync.Mutex
 
+func (test *Test) CreateIDAndSave() error {
+	TestFilesMutex.Lock()
+	defer TestFilesMutex.Unlock()
 
+	// getting current test ID
+	f, err := os.Open("tester/currentID.txt")
+	if err != nil {
+		return err
+	}
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	id, err := strconv.Atoi(scanner.Text())
+	if err != nil {
+		return err
+	}
+	f.Close()
+	string_id := fmt.Sprintf("%d", id)
+	for len(test.ID)+len(string_id) < 4 {
+		test.ID += "0"
+	}
+	test.ID += string_id
+	os.WriteFile("tester/currentID.txt", []byte(fmt.Sprintf("%d", id+1)), 0600)
+
+	// creating new test file
+	testInfo := fmt.Sprintf("Name: %s\nQuestions (%d)\n", test.Name, len(test.Questions))
+	for i, q := range test.Questions {
+		testInfo += fmt.Sprintf("Question %d.\n%s\n%d\n%d\n", i, q.Answer, q.Points, q.Punishment)
+	}
+
+	return os.WriteFile(fmt.Sprintf("tester/tests/%s.txt", test.ID), []byte(testInfo), 0600)
+}
+
+func GetTestByID(id string) (Test, error) {
+	var test Test
+	test.ID = id
+
+	TestFilesMutex.Lock()
+	defer TestFilesMutex.Unlock()
+
+	f, err := os.Open(fmt.Sprintf("tester/tests/%s.txt", id))
+	if err != nil {
+		return test, err
+	}
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	test.Name = scanner.Text()[len("Name: "):]
+	scanner.Scan()
+	n, err := strconv.Atoi(scanner.Text()[len("Questions ("):len(scanner.Text())-1])
+	if err != nil {
+		return test, err
+	}
+	test.Questions = make([]Question, n)
+	for _, q := range test.Questions {
+		scanner.Scan()
+		scanner.Scan()
+		q.Answer = scanner.Text()
+		scanner.Scan()
+		q.Points, err = strconv.Atoi(scanner.Text())
+		if err != nil {
+			return test, err
+		}
+		scanner.Scan()
+		q.Punishment, err = strconv.Atoi(scanner.Text())
+		if err != nil {
+			return test, err
+		}
+	}
+	return test, nil
+}
+
+func AddTestToTeachersList(username string, testID string) error {
+	user, err := GetAccauntInfo(username)
+	if err != nil {
+		return err
+	}
+	user.Tests = append(user.Tests, testID)
+	return user.Save()
+}
 
 
 

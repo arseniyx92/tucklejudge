@@ -36,3 +36,8 @@
 </form><br>
 
 {{end}}
+
+<h3>Tests:</h3>
+{{range .Tests}}
+<a href="/test/createTest">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
+{{end}}

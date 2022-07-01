@@ -31,6 +31,7 @@ func main() {
 	http.HandleFunc("/", mainMenu.MainPageHandler)
 
 	http.HandleFunc("/test/createTest", testCreator.TestCreatorHandler)
+	http.HandleFunc("/test/createTest/process", testCreator.CreationProcessHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

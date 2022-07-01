@@ -1,8 +1,8 @@
-package main
+package imageProcessing
 
 import (
 	"errors"
-	"fieldsRecognition/AI"
+	"tucklejudge/coreRecognitionAlgorithm/AI"
 	"fmt"
 	"github.com/gen2brain/go-fitz"
 	"golang.org/x/exp/constraints"
@@ -809,6 +809,7 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 	otsuThreshold(img)
 	saveOnlyMainComponent(img)
 	//img = augmentWhiteFiguresThickness(img)
+	//img = augmentWhiteFiguresThickness(img)
 
 	dx := float64(rec.Size().X) / 28.
 	dy := float64(rec.Size().Y) / 28.
@@ -825,7 +826,7 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 			result[1+x*28+y] = int(img.GrayAt(x, y).Y)
 		}
 	}
-	printArrayImage28x28("kek1.png", result)
+	//printArrayImage28x28("kek1.png", result)
 	return result
 }
 
@@ -1098,7 +1099,9 @@ func fieldsRecognizer(img *image.Gray, kernelX, kernelY, minimumFieldSize int) (
 	return components
 }
 
-func formValuesProcessing(init image.Image) {
+var perceptrons = AI.InitializePerceptronMesh()
+
+func formValuesProcessing(init image.Image) (results []string) {
 	// recognizing fields
 	img := imageToGrayScale(init)
 	inverseGray(img)
@@ -1114,8 +1117,8 @@ func formValuesProcessing(init image.Image) {
 	img = imageToGrayScale(init)
 	inverseGray(img)
 
-	perceptrons := AI.InitializePerceptronMesh()
 	for fieldID, field := range fields {
+		currentValue := ""
 		if len(field) == 0 {
 			continue
 		}
@@ -1140,19 +1143,37 @@ func formValuesProcessing(init image.Image) {
 			start := minX + dx*block
 			finish := minX + dx*(block+1)
 			digit := AI.GetPrediction(imageFragmentTo28x28(image.Rect(start+2*borders, minY+borders, finish-1, maxY-borders), img), perceptrons)
-			fmt.Println(digit)
+			//fmt.Println(digit)
 			for i := start; i < finish; i++ {
 				for j := minY; j <= maxY; j++ {
 					img.SetGray(i, j, color.Gray{Y: uint8(digit * 10)})
 				}
 			}
-			if blocks == 4 && block == 2 {
-				return
-			}
+			currentValue += string(rune(digit + '0'))
+			//if blocks == 4 && block == 2 {
+			//	return
+			//}
 		}
+		results = append(results, currentValue)
 	}
 
 	printImage("fields.png", img)
+	return results
+}
+
+func BringTestResultsFromPhoto(filepath string) []string {
+	img, _ := getImageFromFile(filepath)
+	img = photoToStandardDocument(img)
+	return formValuesProcessing(img)
+}
+
+func BringTestResultsFromPDFs(filepath string) (result [][]string) {
+	imgs, _ := getImagesFromPdf(filepath)
+	for _, img := range imgs {
+		img = photoToStandardDocument(img)
+		result = append(result, formValuesProcessing(img))
+	}
+	return result
 }
 
 func main() {
@@ -1166,7 +1187,7 @@ func main() {
 	printImage("final.png", img)
 	formValuesProcessing(img)
 
-	//init, _ := getImageFromFile("img_1.png")
+	//init, _ := getImageFromFile("kek1.png")
 	//img := imageToGrayScale(init)
 	//perceptrons := AI.InitializePerceptronMesh()
 	//fmt.Println(AI.GetPrediction(imageFragmentTo28x28(image.Rect(0, 0, 28, 28), img), perceptrons))
