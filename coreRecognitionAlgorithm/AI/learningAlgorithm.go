@@ -10,26 +10,27 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"sort" // should be changes to my own package
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
 // Pictures will be 28x28 so object lenght is 784
+const INF = 1e18
 const OBJECT_LENGTH = 785
 const DATA_SIZE = 42000 * COPIES
 const FIB_SIZE = 46
 const eps = 1e-9
 
 // Changable constants
-const COPIES = 2
-const BUTCH_SIZE = 100
-const ITERATIONS = 1000001
+const COPIES = 1
+const BUTCH_SIZE = 1000
+const ITERATIONS = 301
 const NUMBER_OF_TRAINING_SAMPLES = 30000 * COPIES
-const ITERATIONS_TO_SAVE = 10000
-const ITERATIONS_TO_PRINT = 500
-const ITERATIONS_TO_PLOT_SUPPLEMENTION = 50
+const ITERATIONS_TO_SAVE = INF
+const ITERATIONS_TO_PRINT = 50
+const ITERATIONS_TO_PLOT_SUPPLEMENTION = 1
 
 var PLOT_ON = false
 
@@ -57,12 +58,24 @@ func parseObjectsFile() {
 	scanner := bufio.NewScanner(f)
 	scanner.Scan()
 	for i := 0; i < DATA_SIZE; i += COPIES {
-		x := make([]int, OBJECT_LENGTH)
+		// scanning image into y
+		y := make([]int, OBJECT_LENGTH)
 		scanner.Scan()
 		s := strings.Split(scanner.Text(), ",")
 		for j := 0; j < OBJECT_LENGTH; j++ {
-			x[j], _ = strconv.Atoi(s[j])
+			y[j], _ = strconv.Atoi(s[j])
 		}
+
+		// rotating and flipping image (x, y) -> (y, x)
+		x := make([]int, OBJECT_LENGTH)
+		x[0] = y[0]
+		for j := 1; j < OBJECT_LENGTH; j++ {
+			ind := j - 1
+			posX := ind / 28
+			posY := ind - 28*posX
+			x[j] = y[1+28*posY+posX]
+		}
+
 		if i < NUMBER_OF_TRAINING_SAMPLES {
 			trainObjsGlob[i] = generateObject(x, true)
 			for k := 0; k < COPIES/2; k++ {
@@ -187,6 +200,9 @@ func generatePerceptron(randChan chan int) *Perceptron {
 	// filling with random weights
 	for i := 0; i < OBJECT_LENGTH; i++ {
 		p.w[i] = rnd.Float64() * float64(<-randChan)
+		if (<-randChan)%3 == 0 {
+			p.w[i] *= -1
+		}
 	}
 	return &p
 }
@@ -259,6 +275,7 @@ func evaluateResultCorrectness(objs []*Object, model *Perceptron, grad []float64
 		}
 	}
 	sort.Float64s(results)
+	//mistakes := countMistakes(model, trainObjsGlob, digit)
 
 	// retrieving temporary alterations
 	for i := 0; i < OBJECT_LENGTH; i++ {
@@ -267,6 +284,8 @@ func evaluateResultCorrectness(objs []*Object, model *Perceptron, grad []float64
 
 	// returning median value
 	return results[(len(results)-1)/2] * float64(len(results))
+	//return float64(len(results))
+	//return float64(mistakes)
 }
 
 func learn(model *Perceptron, digit int) {
@@ -287,19 +306,21 @@ func learn(model *Perceptron, digit int) {
 
 	var prevD []float64
 	var sqrLenPrevGrad float64
+	prevF := INF
 
 	for iteration := 0; iteration < ITERATIONS; iteration++ {
 		// getting a batch of objects
 		objs := make([]*Object, BUTCH_SIZE)
-		for i := 0; i < BUTCH_SIZE/3; i++ {
-			objs[i] = currentTypeObjs[(BUTCH_SIZE*iteration+i)%len(currentTypeObjs)] // rnd.Intn(len(currentTypeObjs))
+		for i := 0; i < BUTCH_SIZE/2; i++ {
+			objs[i] = currentTypeObjs[(BUTCH_SIZE*iteration+i)%len(currentTypeObjs)]
+			//objs[i] = currentTypeObjs[rnd.Intn(len(currentTypeObjs))]
 		}
-		for i := BUTCH_SIZE / 3; i < BUTCH_SIZE; i++ {
-			objs[i] = trainObjsGlob[(BUTCH_SIZE*iteration+i-BUTCH_SIZE/3)%len(trainObjsGlob)] // rnd.Intn(len(trainObjsGlob))
+		for i := BUTCH_SIZE / 2; i < BUTCH_SIZE; i++ {
+			objs[i] = trainObjsGlob[(BUTCH_SIZE*iteration+i-BUTCH_SIZE/2)%len(trainObjsGlob)]
+			//objs[i] = trainObjsGlob[rnd.Intn(len(trainObjsGlob))]
 		}
-		//rnd.Shuffle(len(objs), func(i, j int) { objs[i], objs[j] = objs[j], objs[i] })
 
-		// generating answer for each one
+		// generating answer for each butch object
 		mistakes := 0
 		currentGrad := make([]float64, OBJECT_LENGTH)
 		for i := 0; i < BUTCH_SIZE; i++ {
@@ -315,98 +336,126 @@ func learn(model *Perceptron, digit int) {
 				}
 			}
 		}
-		sqrLenCurrentGrad := float64(0)
 		if mistakes > 0 {
 			for i := 0; i < OBJECT_LENGTH; i++ {
-				//currentGrad[i] /= float64(mistakes)
-				sqrLenCurrentGrad += currentGrad[i] * currentGrad[i]
+				currentGrad[i] /= float64(mistakes)
 			}
 		}
-
-		// creating gradient by using Fletcher Rives method
-		var currentD []float64
-		if iteration == 0 {
-			currentD = currentGrad
-		} else {
-			betta := 0.
-			if sqrLenPrevGrad > eps || sqrLenPrevGrad < -eps {
-				betta = sqrLenCurrentGrad / sqrLenPrevGrad
-			}
-
-			currentD = make([]float64, OBJECT_LENGTH)
-			for i := 0; i < OBJECT_LENGTH; i++ {
-				currentD[i] = currentGrad[i] + betta*prevD[i]
-			}
-		}
-		prevD = currentD
-		sqrLenPrevGrad = sqrLenCurrentGrad
 
 		// choosing best learning rate (step length)
 		l, r := 0., .5
 		m1, m2 := l+(r-l)*(fibs[FIB_SIZE-3]/fibs[FIB_SIZE-1]), l+(r-l)*(fibs[FIB_SIZE-2]/fibs[FIB_SIZE-1])
-		f1 := evaluateResultCorrectness(objs, model, currentD, m1, digit)
-		f2 := evaluateResultCorrectness(objs, model, currentD, m2, digit)
+		f1 := evaluateResultCorrectness(objs, model, currentGrad, m1, digit)
+		f2 := evaluateResultCorrectness(objs, model, currentGrad, m2, digit)
 		for i := FIB_SIZE - 2; i > 1; i-- {
-			if f1 > f2 {
+			if f1 >= f2 {
 				l = m1
 				m1 = m2
 				f1 = f2
 				m2 = l + (r-l)*(fibs[i-1]/fibs[i])
-				f2 = evaluateResultCorrectness(objs, model, currentD, m2, digit)
+				f2 = evaluateResultCorrectness(objs, model, currentGrad, m2, digit)
 			} else {
 				r = m2
 				m2 = m1
 				f2 = f1
 				m1 = l + (r-l)*(fibs[i-2]/fibs[i])
-				f1 = evaluateResultCorrectness(objs, model, currentD, m1, digit)
+				f1 = evaluateResultCorrectness(objs, model, currentGrad, m1, digit)
 			}
 		}
 		learningRate := l
+		if f1 < prevF {
+			sqrLenCurrentGrad := float64(0)
+			for i := 0; i < OBJECT_LENGTH; i++ {
+				currentGrad[i] += currentGrad[i] * learningRate
+				sqrLenCurrentGrad += currentGrad[i] * currentGrad[i]
+			}
 
-		// apply alterations to the model
-		for i := 0; i < OBJECT_LENGTH; i++ {
-			model.w[i] += currentD[i] * learningRate
+			// creating gradient by using Fletcher Rives method
+			var currentD []float64
+			if iteration == 0 {
+				currentD = currentGrad
+			} else {
+				betta := 0.
+				if sqrLenPrevGrad > eps || sqrLenPrevGrad < -eps {
+					betta = sqrLenCurrentGrad / sqrLenPrevGrad
+				}
+
+				currentD = make([]float64, OBJECT_LENGTH)
+				for i := 0; i < OBJECT_LENGTH; i++ {
+					currentD[i] = currentGrad[i] + betta*prevD[i]
+				}
+			}
+			prevD = currentD
+			sqrLenPrevGrad = sqrLenCurrentGrad
+			prevF = evaluateResultCorrectness(objs, model, currentD, 1, digit)
+
+			// apply alterations to the model
+			for i := 0; i < OBJECT_LENGTH; i++ {
+				model.w[i] += currentD[i]
+			}
 		}
+
+		// logging
 		if iteration%ITERATIONS_TO_PLOT_SUPPLEMENTION == 0 {
 			addPerceptronResultsToPlot(model, digit)
 		}
 		if iteration%ITERATIONS_TO_PRINT == 0 {
+			if countMistakes(model, trainObjsGlob, digit) < 5000 {
+				saveFunc(model, digit)
+				fmt.Println("NICE", countMistakes(model, trainObjsGlob, digit))
+				os.Exit(0)
+			}
 			fmt.Println("Iteration", iteration, " of digit:", digit, ")     error value: ", countMistakes(model, trainObjsGlob, digit))
 		}
 		if iteration%ITERATIONS_TO_SAVE == 0 {
-			os.WriteFile(fmt.Sprintf("perceptron%d.txt", digit), []byte(fmt.Sprintf("%v", model.w)), 0600)
-			if PLOT_ON {
-				err := createPlot(fmt.Sprintf("perceptron%d", digit))
-				if err != nil {
-					panic(err.Error())
-				}
-			}
+			saveFunc(model, digit)
+		}
+	}
+}
+
+func saveFunc(model *Perceptron, digit int) {
+	os.WriteFile(fmt.Sprintf("perceptron%d.txt", digit), []byte(fmt.Sprintf("%v", model.w)), 0600)
+	if PLOT_ON {
+		err := createPlot(fmt.Sprintf("perceptron%d", digit))
+		if err != nil {
+			panic(err.Error())
 		}
 	}
 }
 
 func main() {
 	parseObjectsFile()
+	randChan := make(chan int)
+	go func() {
+		for {
+			randChan <- rnd.Intn(1e4)
+		}
+	}()
 
-	// train particular perceptron
+	//train particular perceptron
 	//PLOT_ON = true
-	//trainParticularPerceptron(2, false)
+	//for i := 0; i < 5; i++ {
+	//	go trainParticularPerceptron(8, true, randChan)
+	//}
+	//for {
+	//}
 
 	//train all perceptrons
-	//randChan := make(chan int)
 	//for digit := 0; digit <= 9; digit++ {
 	//	go trainParticularPerceptron(digit, false, randChan)
 	//}
-	//for {
-	//	randChan <- rnd.Intn(1e4)
-	//}
 
 	//check current perceptrons results
-	fmt.Println("MISTAKES: ")
-	for digit := 0; digit <= 9; digit++ {
-		p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
-		fmt.Printf("%d TRAIN: %d TEST: %d\n", digit, countMistakes(p, trainObjsGlob, digit), countMistakes(p, testObjsGlob, digit))
-	}
+	//fmt.Println("MISTAKES: ")
+	//for digit := 0; digit <= 9; digit++ {
+	//	p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+	//	fmt.Printf("%d TRAIN: %d TEST: %d\n", digit, countMistakes(p, trainObjsGlob, digit), countMistakes(p, testObjsGlob, digit))
+	//}
+
+	// check accuracy
+	digit := 8
+	p := getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+	fmt.Println(getPerceptronAccuracy(p, testObjsGlob, digit))
 }
 
 var testingDataCorrectnessPlot []float64
@@ -431,11 +480,13 @@ func createPlot(modelName string) error {
 }
 
 func trainParticularPerceptron(digit int, createNew bool, randChan chan int) {
-	p := generatePerceptron(randChan)
-	if createNew == false {
-		p = getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+	for {
+		p := generatePerceptron(randChan)
+		if createNew == false {
+			p = getPerceptronFromFile(fmt.Sprintf("perceptron%d.txt", digit))
+		}
+		learn(p, digit)
 	}
-	learn(p, digit)
 }
 
 func InitializePerceptronMesh() [10]*Perceptron {
@@ -458,6 +509,17 @@ func GetPrediction(image [OBJECT_LENGTH]int, perceptrons [10]*Perceptron) int {
 		}
 	}
 	return matchingDigit
+}
+
+func getPerceptronAccuracy(model *Perceptron, objs []*Object, digit int) float64 {
+	mistakes := 0
+	for _, obj := range objs {
+		x := model.getSuggestion(obj)
+		if (x >= 0) != (digit == obj.digit) {
+			mistakes++
+		}
+	}
+	return 1. - (float64(mistakes) / float64(len(objs)))
 }
 
 //MISTAKES:

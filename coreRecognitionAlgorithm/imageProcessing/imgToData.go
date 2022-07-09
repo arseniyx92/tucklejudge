@@ -1,8 +1,8 @@
-package imageProcessing
+package main
 
 import (
 	"errors"
-	"tucklejudge/coreRecognitionAlgorithm/AI"
+	"fieldsRecognition/AI"
 	"fmt"
 	"github.com/gen2brain/go-fitz"
 	"golang.org/x/exp/constraints"
@@ -739,6 +739,28 @@ func augmentWhiteFiguresThickness(init *image.Gray) *image.Gray {
 	return img
 }
 
+func lightUpWhiteABit(init *image.Gray) *image.Gray {
+	img := image.NewGray(init.Bounds())
+	dirX := []int{-1, 0, 0, 1}
+	dirY := []int{0, -1, 1, 0}
+	for x := init.Bounds().Min.X; x <= init.Bounds().Max.X; x++ {
+		for y := init.Bounds().Min.Y; y <= init.Bounds().Max.Y; y++ {
+			img.SetGray(x, y, init.GrayAt(x, y))
+			if init.GrayAt(x, y).Y > 150 {
+				img.SetGray(x, y, color.Gray{Y: 255})
+				for dir := 0; dir < 4; dir++ {
+					nx := x + dirX[dir]
+					ny := y + dirY[dir]
+					if nx >= 0 && nx <= init.Bounds().Size().X && ny >= 0 && ny <= init.Bounds().Size().Y {
+						img.SetGray(nx, ny, color.Gray{Y: 255})
+					}
+				}
+			}
+		}
+	}
+	return img
+}
+
 func getWhiteComponents(img *image.Gray) (components [][]IntPair) {
 	lx := img.Bounds().Min.X
 	ly := img.Bounds().Min.Y
@@ -799,6 +821,68 @@ func saveOnlyMainComponent(img *image.Gray) {
 	}
 }
 
+func centralizeMainComponent(img *image.Gray, extend bool) {
+	components := getWhiteComponents(img)
+	if len(components) > 1 {
+		for i, comp := range components {
+			if i != 0 {
+				components[0] = append(components[0], comp...)
+			}
+		}
+	} else if len(components) == 0 {
+		return
+	}
+	cpy := copyGray(img)
+	boundsX := IntPair{28, 0}
+	boundsY := IntPair{28, 0}
+	centerX := 0
+	centerY := 0
+	comp := components[0]
+	for _, pos := range comp {
+		boundsX.first = min(boundsX.first, pos.first)
+		boundsX.second = max(boundsX.second, pos.first)
+		boundsY.first = min(boundsY.first, pos.second)
+		boundsY.second = max(boundsY.second, pos.second)
+		centerX += pos.first
+		centerY += pos.second
+	}
+	centerX /= len(comp)
+	centerY /= len(comp)
+	scale := max(float64(boundsY.second-boundsY.first)/16., float64(boundsX.second-boundsX.first)/14.)
+	if extend {
+		scale = max(float64(boundsY.second-boundsY.first)/17., float64(boundsX.second-boundsX.first)/16.)
+	}
+	boundsX.first = int(float64(boundsX.first)/scale) - centerX
+	boundsX.second = int(float64(boundsX.second)/scale) - centerX
+	boundsY.first = int(float64(boundsY.first)/scale) - centerY
+	boundsY.second = int(float64(boundsY.second)/scale) - centerY
+	for i := -28; i < 28; i++ {
+		for j := -28; j < 28; j++ {
+			shiftX := 15
+			if extend {
+				shiftX = 14
+			}
+			img.SetGray(i+shiftX+(boundsX.second-boundsX.first)/2-boundsX.second, j+24-boundsY.second, cpy.GrayAt(int(math.Round(scale*float64(i+centerX))), int(math.Round(scale*float64(j+centerY)))))
+		}
+	}
+	//for j := 27; j >= 0; j-- {
+	//	cnt := 0
+	//	for i := 0; i < 28; i++ {
+	//		cnt += int(img.GrayAt(i, j).Y)
+	//	}
+	//	if cnt > 0 {
+	//		shift := j - 27
+	//		cpy := copyGray(img)
+	//		for x := 0; x < 28; x++ {
+	//			for y := 0; y < 28; y++ {
+	//				img.SetGray(x, y, cpy.GrayAt(x, y+shift))
+	//			}
+	//		}
+	//		break
+	//	}
+	//}
+}
+
 func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]int) {
 	img := image.NewGray(image.Rect(0, 0, max(rec.Size().X, 28), max(rec.Size().Y, 28)))
 	for x := rec.Min.X; x <= rec.Max.X; x++ {
@@ -806,6 +890,7 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 			img.SetGray(x-rec.Min.X, y-rec.Min.Y, init.GrayAt(x, y))
 		}
 	}
+	//printImage("kek1.png", img)
 	otsuThreshold(img)
 	saveOnlyMainComponent(img)
 	//img = augmentWhiteFiguresThickness(img)
@@ -818,6 +903,22 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 		[]float64{0, dy, 0},
 	}}
 	img = applyAffineTransformationOnGray(img, magnifier)
+	centralizeMainComponent(img, false)
+	img = augmentWhiteFiguresThickness(img)
+	gaussianBlur(img, 2)
+	img = lightUpWhiteABit(img)
+	img = lightUpWhiteABit(img)
+	gaussianBlur(img, 2)
+
+	//{
+	//	pic := image.NewGray(img.Bounds())
+	//	for i := 0; i < 28; i++ {
+	//		for j := 0; j < 28; j++ {
+	//			pic.SetGray(i, j, img.GrayAt(i, j-1))
+	//		}
+	//	}
+	//	printImage("kek1.png", pic)
+	//}
 
 	//printImage("kek1.png", img)
 	result[0] = 1
@@ -826,7 +927,61 @@ func imageFragmentTo28x28(rec image.Rectangle, init *image.Gray) (result [785]in
 			result[1+x*28+y] = int(img.GrayAt(x, y).Y)
 		}
 	}
-	//printArrayImage28x28("kek1.png", result)
+	printArrayImage28x28("kek1.png", result)
+	return result
+}
+
+func imageFragmentTo28x28secondTry(rec image.Rectangle, init *image.Gray) (result [785]int) {
+	pimg := image.NewGray(image.Rect(0, 0, max(rec.Size().X, 28), max(rec.Size().Y, 28)))
+	for x := rec.Min.X; x <= rec.Max.X; x++ {
+		for y := rec.Min.Y; y <= rec.Max.Y; y++ {
+			pimg.SetGray(x-rec.Min.X, y-rec.Min.Y, init.GrayAt(x, y))
+		}
+	}
+	otsuThreshold(pimg)
+	saveOnlyMainComponent(pimg)
+	//img = augmentWhiteFiguresThickness(img)
+	//img = augmentWhiteFiguresThickness(img)
+
+	dx := float64(rec.Size().X) / 28.
+	dy := float64(rec.Size().Y) / 28.
+	magnifier := Matrix{matrix: [][]float64{
+		[]float64{dx, 0, 0},
+		[]float64{0, dy, 0},
+	}}
+	pimg = applyAffineTransformationOnGray(pimg, magnifier)
+	img := image.NewGray(image.Rect(0, 0, 28, 28))
+	for i := 0; i < 28; i++ {
+		for j := 0; j < 28; j++ {
+			img.SetGray(i, j, pimg.GrayAt(i, j))
+		}
+	}
+
+	//img = augmentWhiteFiguresThickness(img)
+	centralizeMainComponent(img, true)
+	//img = augmentWhiteFiguresThickness(img)
+	//gaussianBlur(img, 2)
+	img = lightUpWhiteABit(img)
+	gaussianBlur(img, 2)
+	printImage("kek0.png", img)
+
+	//{
+	//	pic := image.NewGray(img.Bounds())
+	//	for i := 0; i < 28; i++ {
+	//		for j := 0; j < 28; j++ {
+	//			pic.SetGray(i, j, img.GrayAt(i, j-1))
+	//		}
+	//	}
+	//	printImage("kek1.png", pic)
+	//}
+
+	//printImage("kek1.png", img)
+	result[0] = 1
+	for x := 0; x < 28; x++ {
+		for y := 0; y < 28; y++ {
+			result[1+x*28+y] = int(img.GrayAt(x, y).Y)
+		}
+	}
 	return result
 }
 
@@ -1133,7 +1288,7 @@ func formValuesProcessing(init image.Image) (results []string) {
 			maxY = max(maxY, v.second)
 		}
 		blocks := 8
-		borders := int(float64(imgSize) * 0.000008)
+		borders := int(float64(imgSize) * 0.000003)
 		if fieldID < 2 {
 			blocks = 4
 			borders = int(float64(imgSize) * 0.00001)
@@ -1142,19 +1297,24 @@ func formValuesProcessing(init image.Image) (results []string) {
 		for block := 0; block < blocks; block++ {
 			start := minX + dx*block
 			finish := minX + dx*(block+1)
-			digit := AI.GetPrediction(imageFragmentTo28x28(image.Rect(start+2*borders, minY+borders, finish-1, maxY-borders), img), perceptrons)
-			//fmt.Println(digit)
+			digit := AI.GetPrediction(imageFragmentTo28x28(image.Rect(start+int(2*float64(borders)), minY+borders, finish-1, maxY-borders), img), perceptrons)
+			if digit == 10 {
+				digit = AI.GetPrediction(imageFragmentTo28x28secondTry(image.Rect(start+int(2*float64(borders)), minY+borders, finish-1, maxY-borders), img), perceptrons)
+			}
+			fmt.Print(digit, " ")
+			digit = rand.Intn(50) + 200
 			for i := start; i < finish; i++ {
 				for j := minY; j <= maxY; j++ {
-					img.SetGray(i, j, color.Gray{Y: uint8(digit * 10)})
+					img.SetGray(i, j, color.Gray{Y: uint8(digit)})
 				}
 			}
 			currentValue += string(rune(digit + '0'))
-			//if blocks == 4 && block == 2 {
+			//if block == 3 && fieldID == 5 {
 			//	return
 			//}
 		}
 		results = append(results, currentValue)
+		fmt.Println()
 	}
 
 	printImage("fields.png", img)
@@ -1187,8 +1347,15 @@ func main() {
 	printImage("final.png", img)
 	formValuesProcessing(img)
 
-	//init, _ := getImageFromFile("kek1.png")
+	//init, _ := getImageFromFile("pic5.png") // TODO 5, 8, 9
 	//img := imageToGrayScale(init)
 	//perceptrons := AI.InitializePerceptronMesh()
-	//fmt.Println(AI.GetPrediction(imageFragmentTo28x28(image.Rect(0, 0, 28, 28), img), perceptrons))
+	//fmt.Println(AI.GetPrediction(imageFragmentTo28x28secondTry(image.Rect(0, 0, 28, 28), img), perceptrons))
+
+	//init, _ := getImageFromFile("kek0.png")
+	//img := imageToGrayScale(init)
+	//perceptron := AI.GetPerceptronFromFile("perceptron2.txt")
+	//lol := imageFragmentTo28x28(image.Rect(0, 0, 28, 28), img)
+	//obj := AI.GenerateObject(lol[:], true)
+	//fmt.Println(perceptron.GetSuggestion(obj))
 }
