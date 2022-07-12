@@ -1,0 +1,4 @@
+github.com/gen2brain/go-fitz v1.19.0 h1:tXuT5dpsxPNn7LS8eGv2uQ04EviyGb/o2AdEr1e4W0M=
+github.com/gen2brain/go-fitz v1.19.0/go.mod h1:UZAxMETTDK4UPpuh80HaRpPzgkSibUihXVzwj2ip5oQ=
+golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d h1:vtUKgx8dahOomfFzLREU8nSv25YHnTgLBn4rDnWZdU0=
+golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d/go.mod h1:Kr81I6Kryrl9sr8s2FK3vxD90NdsKWRuOIl2O4CvYbA=
