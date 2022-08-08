@@ -7,15 +7,20 @@
 <label for="numberOfQuestions">Number of questions</label>
 <input type="number" name="numberOfQuestions" id="numberOfQuestions" value="30" min="1" max="30"><br>
 
-<h3>Questions (maximum answer length is 15) </h3>
+<h3>Questions (maximum answer length is 8) </h3>
 <p>Index of question | Answer | Points | Punishment for one mistake</p><br>
 {{range .Questions}}
 <label for="question{{.}}">{{.}}. </label>
-<input type="text" name="answer{{.}}" maxlength = "15">
+<input type="text" name="answer{{.}}" maxlength = "8">
 <input type="number" name="points{{.}}" min="0" max="100" value="1">
 <input type="number" name="punishment{{.}}" min="0" max="100" value="1">
 <br>
 {{end}}
+
+<h3>Mark:</h3>
+<p>points < <input type="number" name="pointsTo2"> - 2</p>
+<p>points < <input type="number" name="pointsTo3"> - 3</p>
+<p>points < <input type="number" name="pointsTo4"> - 4</p>
 
 <input type="submit" value="Save!">
 </form>

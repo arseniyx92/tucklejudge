@@ -7,6 +7,8 @@ import (
 	"tucklejudge/authentication"
 	"tucklejudge/mainMenu"
 	"tucklejudge/tester/testCreator"
+	"tucklejudge/tester/testViewer"
+	"tucklejudge/tester/testChecker"
 	"tucklejudge/utils"
 )
 
@@ -33,5 +35,19 @@ func main() {
 	http.HandleFunc("/test/createTest", testCreator.TestCreatorHandler)
 	http.HandleFunc("/test/createTest/process", testCreator.CreationProcessHandler)
 
+	http.HandleFunc("/test/view/", testViewer.TestViewHandler)
+	// http.HandleFunc("/test/deleteTest", testCreator.TestDeletionHandler)
+
+	http.HandleFunc("/test/checkTest", testChecker.TestCheckHandler)
+
+	// http.HandleFunc("lesson/create/", lessonEditor.CreateLesson)
+	// http.HandleFunc("lesson/delete/", lessonEditor.DeleteLesson)
+	// http.HandleFunc("lesson/view/", lessonEditor.LessonViewHandler)
+	// http.HandleFunc("lesson/addPDF/", lessonEditor.AddNewPDFToLessonHandler)
+	// http.HandleFunc("lesson/changeMarks/", lessonEditor.ChangeMarksHandler)
+	// http.HandleFunc("/test/deployToElectronicMarkBook/", lessonEditor.DeployToElectronicMarkBookHandler)
+
+	http.Handle("/src/", http.StripPrefix("/src/", http.FileServer(http.Dir("./src"))))
+	http.Handle("/favicon.ico", http.NotFoundHandler()) // TODO
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

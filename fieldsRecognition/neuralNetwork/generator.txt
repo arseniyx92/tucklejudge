@@ -1,0 +1,170 @@
+package main
+
+import (
+	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"log"
+	"math/rand"
+	"neuralNetwork/pkg/cnn"
+	"neuralNetwork/pkg/cnn/maths"
+	"neuralNetwork/pkg/cnn/metrics"
+	"neuralNetwork/pkg/images"
+	"neuralNetwork/pkg/mnist"
+	"os"
+	"time"
+)
+
+func main() {
+	rand.Seed(time.Now().UnixNano())
+	//labels, err := mnist.ReadLabels("./assets/mnist/train-labels-idx1-ubyte", 60000)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//labelTensors := mnist.LabelsToTensors(labels)
+	//imageTensors, err := mnist.ReadGrayImages("./assets/mnist/train-images-idx3-ubyte", 60000)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//
+	//valLabels, err := mnist.ReadLabels("./assets/mnist/t10k-labels-idx1-ubyte", 10000)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//valLabelTensors := mnist.LabelsToTensors(valLabels)
+	valImageTensors, err := mnist.ReadGrayImages("./assets/mnist/t10k-images-idx3-ubyte", 10000)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	nn := cnn.New([]int{28, 28}, 0.005, &metrics.CrossEntropyLoss{})
+
+	//nn.AddConvolutionLayer([]int{3, 3}, 8).
+	//	AddMaxPoolingLayer(2, []int{2, 2}).
+	//	AddFullyConnectedLayer(10). // 0-9
+	//	AddSoftmaxLayer()
+
+	nn.LoadConvolutionLayer([]int{3, 3}, 8).
+		AddMaxPoolingLayer(2, []int{2, 2}).
+		LoadFullyConnectedLayer(10). // 0-9
+		AddSoftmaxLayer()
+
+	//nn.Fit(imageTensors, labelTensors, valImageTensors, valLabelTensors, 12, 64, true, 100, func() {
+	//	nn.SetLearningRate(nn.LearningRate() * 0.82)
+	//})
+
+	//nn.Validate(valImageTensors, valLabelTensors)
+
+	//img, err := getImageFromFile("kek1.png")
+	//if err != nil {
+	//	panic(err)
+	//}
+	//gray := imageToGrayScale(img)
+	//t := GrayToTensor(*gray)
+	//printObjectImage28x28(t.Values())
+	//fmt.Printf("%f\n\n", nn.Predict(t))
+
+	ind := 1
+	printObjectImage28x28(valImageTensors[ind].Values())
+	fmt.Printf("%f", nn.Predict(valImageTensors[ind]))
+}
+
+func readImages() ([]maths.Tensor, []maths.Tensor) {
+	zero, err := images.GrayScaleImageFromPath("./assets/digits/0.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	one, err := images.GrayScaleImageFromPath("./assets/digits/1.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	two, err := images.GrayScaleImageFromPath("./assets/digits/2.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	three, err := images.GrayScaleImageFromPath("./assets/digits/3.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	four, err := images.GrayScaleImageFromPath("./assets/digits/4.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	five, err := images.GrayScaleImageFromPath("./assets/digits/5.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	six, err := images.GrayScaleImageFromPath("./assets/digits/6.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	seven, err := images.GrayScaleImageFromPath("./assets/digits/7.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	eight, err := images.GrayScaleImageFromPath("./assets/digits/8.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	nine, err := images.GrayScaleImageFromPath("./assets/digits/9.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	nums := []*image.Gray{zero, one, two, three, four, five, six, seven, eight, nine}
+	imageTensors := make([]maths.Tensor, len(nums))
+	for i := 0; i < len(nums); i++ {
+		pixels := make([]float64, 28*28)
+		imageTensors[i] = *maths.NewTensor([]int{28, 28}, pixels)
+	}
+	return nil, nil
+}
+
+func printObjectImage28x28(x []float64) {
+	img := image.NewGray(image.Rect(0, 0, 28, 28))
+	for i := 0; i < 28; i++ {
+		for j := 0; j < 28; j++ {
+			img.SetGray(j, i, color.Gray{Y: uint8(-(255.*x[i*28+j] - 128.))})
+		}
+	}
+	printImage(fmt.Sprintf("lol.png"), img)
+}
+
+func printImage(filepath string, img image.Image) {
+	if _, err := os.Stat(filepath); err == nil {
+		os.Remove(filepath)
+	}
+	f, _ := os.Create(filepath)
+	_ = png.Encode(f, img)
+}
+
+func GrayToTensor(gray image.Gray) maths.Tensor {
+	dims := []int{gray.Bounds().Size().X, gray.Bounds().Size().Y}
+	values := make([]float64, dims[0]*dims[1])
+	for i := gray.Bounds().Min.X; i < gray.Bounds().Max.X; i++ {
+		for j := gray.Bounds().Min.Y; j < gray.Bounds().Max.Y; j++ {
+			values[i+j*dims[0]] = (128. - float64(gray.GrayAt(i, j).Y)) / 255.
+		}
+	}
+	return *maths.NewTensor(dims, values)
+}
+
+func getImageFromFile(filepath string) (image.Image, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	image, _, err := image.Decode(f)
+	return image, err
+}
+
+func imageToGrayScale(img image.Image) *image.Gray {
+	grayImg := image.NewGray(img.Bounds())
+	for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+		for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+			grayImg.Set(x, y, img.At(x, y))
+		}
+	}
+	return grayImg
+}

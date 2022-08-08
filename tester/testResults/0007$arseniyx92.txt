@@ -1,0 +1,11 @@
+TestName: loller
+Mark: 4
+Input image name: kek0
+Processed image name: kek1
+Questions (1)
+1) 2334YourInput 2335Correct!!! 98
+Points sum: 98
+Points to mark: 2, 3, 4
+10
+20
+99

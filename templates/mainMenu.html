@@ -8,16 +8,9 @@
 	<input type="submit" value="Create new test">
 </form><br>
 
-<form action="/test/checkTest" method="POST">
-	<label for="checkTest">Check test from photo:</label><br>
-	<input type="file" name="testFile"><br>
-	<input type="submit" value="Check!">
-</form><br>
-
-<form action="/test/checkTestsGlob" method="POST">
-	<label for="checkTestsGlob">Check tests from PDF pile:</label><br>
-	<input type="file" name="testFiles"><br>
-	<!-- <input type="text" name="testName" placeholder="#XXXX - test id"> -->
+<form action="/test/checkTest" enctype="multipart/form-data" method="POST">
+	<label for="file">Check tests from PDF pile or from photo:</label><br>
+	<input type="file" name="file"><br>
 	<input type="submit" value="Check!">
 </form><br>
 
@@ -37,7 +30,8 @@
 
 {{end}}
 
+{{$user := .Username}}
 <h3>Tests:</h3>
 {{range .Tests}}
-<a href="/test/createTest">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
+<a href="/test/view/{{.TestID}}${{$user}}">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
 {{end}}

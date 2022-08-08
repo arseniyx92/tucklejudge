@@ -1,0 +1,13 @@
+TestName: ""
+Mark: "%d"
+Input image src: ""
+Processed image src: ""
+Questions "%d":
+"(Your Answer)"
+"(Correct Answer)"
+"(Points)"
+Points sum: "%d"
+Points to mark: 2, 3, 4
+"%d"
+"%d"
+"%d"

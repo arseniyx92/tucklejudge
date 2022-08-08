@@ -11,6 +11,8 @@ import (
 	"bufio"
 	"fmt"
 	"strconv"
+	"strings"
+	"io"
 )
 
 var RandomGen = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -86,34 +88,92 @@ type User struct {
 	Tests []string
 }
 
-func (rg *User) Create() error {
-	UserFilesMutex.Lock()
-	defer UserFilesMutex.Unlock()
-
-	// getting currently free ID
-	f, err := os.Open("authentication/currentID.txt")
+func getCurrentlyFreeID(folderPath string, maxChars int) (string, error) {
+	f, err := os.Open(fmt.Sprintf("%s/currentID.txt", folderPath))
 	if err != nil {
-		return err
+		return "", err
 	}
 	scanner := bufio.NewScanner(f)
 	scanner.Scan()
 	id, err := strconv.Atoi(scanner.Text())
 	if err != nil {
-		return err
+		return "", err
 	}
 	f.Close()
 	string_id := fmt.Sprintf("%d", id)
-	for len(rg.ID)+len(string_id) < 4 {
-		rg.ID += "0"
+	var ID string
+	for len(ID)+len(string_id) < maxChars {
+		ID += "0"
 	}
-	rg.ID += string_id
-	os.WriteFile("authentication/currentID.txt", []byte(fmt.Sprintf("%d", id+1)), 0600)
+	ID += string_id
+	os.WriteFile(fmt.Sprintf("%s/currentID.txt", folderPath), []byte(fmt.Sprintf("%d", id+1)), 0600)
+	return ID, nil
+}
+
+func SaveFormFileToSrc(r *http.Request) (string, error) {
+	// receiving image info from http.Request
+	in, header, err := r.FormFile("file")
+	if err != nil {
+		return "", err // maybe http.Redirect(w, r, "/", http.StatusFound)
+	}
+	defer in.Close()
+	// getting currently free ID for a new image
+	UserFilesMutex.Lock()
+	fileName, err := getCurrentlyFreeID("src", 6)
+	UserFilesMutex.Unlock()
+	if err != nil {
+		return "", err
+	}
+	// getting file extension
+	strsForGettingCorrectExtension := strings.Split(header.Filename, ".")
+	fileName += "." + strsForGettingCorrectExtension[len(strsForGettingCorrectExtension)-1]
+	// creating new image
+	out, err := os.Create("src/"+fileName)
+	if err != nil {
+		return "", err
+	}
+	defer out.Close()
+    io.Copy(out, in)
+    return fileName, nil
+}
+
+func (rg *User) Create() error {
+	UserFilesMutex.Lock()
+	defer UserFilesMutex.Unlock()
+
+	// getting currently free ID
+	s, err := getCurrentlyFreeID("authentication", 4)
+	rg.ID = s
+	if err != nil {
+		return err
+	}
+	id, err := strconv.Atoi(rg.ID)
+	if err != nil {
+		return err
+	}
+	// f, err := os.Open("authentication/currentID.txt")
+	// if err != nil {
+	// 	return err
+	// }
+	// scanner := bufio.NewScanner(f)
+	// scanner.Scan()
+	// id, err := strconv.Atoi(scanner.Text())
+	// if err != nil {
+	// 	return err
+	// }
+	// f.Close()
+	// string_id := fmt.Sprintf("%d", id)
+	// for len(rg.ID)+len(string_id) < 4 {
+	// 	rg.ID += "0"
+	// }
+	// rg.ID += string_id
+	// os.WriteFile("authentication/currentID.txt", []byte(fmt.Sprintf("%d", id+1)), 0600)
 
 	// adding ID to local memory
 	IDtoUsername.AddNode(id, rg.Username)
 
 	// adding user to user.txt (usertlist)
-	f, err = os.OpenFile("authentication/users.txt", os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.OpenFile("authentication/users.txt", os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -203,6 +263,7 @@ type Test struct {
 	ID string
 	Name string
 	Questions []Question
+	PointsToMark [3]int // < 2, 3, 4
 }
 
 var TestFilesMutex sync.Mutex
@@ -235,6 +296,10 @@ func (test *Test) CreateIDAndSave() error {
 	for i, q := range test.Questions {
 		testInfo += fmt.Sprintf("Question %d.\n%s\n%d\n%d\n", i, q.Answer, q.Points, q.Punishment)
 	}
+	testInfo += "Points to mark: 2, 3, 4\n"
+	for _, q := range test.PointsToMark {
+		testInfo += fmt.Sprintf("%d\n", q)
+	}
 
 	return os.WriteFile(fmt.Sprintf("tester/tests/%s.txt", test.ID), []byte(testInfo), 0600)
 }
@@ -259,7 +324,8 @@ func GetTestByID(id string) (Test, error) {
 		return test, err
 	}
 	test.Questions = make([]Question, n)
-	for _, q := range test.Questions {
+	for i, _ := range test.Questions {
+		q := &test.Questions[i]
 		scanner.Scan()
 		scanner.Scan()
 		q.Answer = scanner.Text()
@@ -274,6 +340,12 @@ func GetTestByID(id string) (Test, error) {
 			return test, err
 		}
 	}
+	scanner.Scan() // scanning "Points to mark: 2, 3, 4"
+	for i, _ := range test.PointsToMark {
+		scanner.Scan()
+		test.PointsToMark[i], _ = strconv.Atoi(scanner.Text())
+	}
+	scanner.Scan()
 	return test, nil
 }
 
@@ -286,5 +358,12 @@ func AddTestToTeachersList(username string, testID string) error {
 	return user.Save()
 }
 
+func GetTestUsersResultByID(testID string, username string) (string, error) {
+	b, err := os.ReadFile(fmt.Sprintf("tester/testResults/%s$%s.txt", testID, username))
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
 
 

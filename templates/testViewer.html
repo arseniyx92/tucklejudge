@@ -1,0 +1,26 @@
+<h1>Test: {{.TestName}} solved by {{.UserName}}</h1>
+<h2>Mark: {{.Mark}}</h2>
+
+<p>Input image: </p><br>
+
+<img src="/src/{{.InputImageName}}.png" alt="Input image" style="width: 200px;height: 400px"><br>
+
+<p>Processed image: </p><br>
+
+<img src="/src/{{.ProcessedImageName}}.png" alt="Processed image" style="width: 200px;height: 400px"><br>
+
+{{$user := .UserName}}
+<h3>Questions: </h3>
+{{range .Questions}}
+<p>{{.Index}}) {{$user}}'s answer is {{.UserAnswer}} and correct is {{.CorrectAnswer}} -> {{.Points}} points received</p>
+{{end}}
+
+<h3>Got {{.PointsSum}} points in total and markBounds are:</h3>
+<h4>
+{{range .PointsToMark}}
+< {{.}} 
+{{end}}
+</h4>
+<h4>
+For 2, 3, 4 and 5 above
+</h4>

@@ -38,6 +38,9 @@ func CreationProcessHandler(w http.ResponseWriter, r *http.Request) {
 		test.Questions[i].Points, _ = strconv.Atoi(r.FormValue(fmt.Sprintf("points%d", i+1)))
 		test.Questions[i].Punishment, _ = strconv.Atoi(r.FormValue(fmt.Sprintf("punishment%d", i+1)))
 	}
+	for i, _ := range test.PointsToMark {
+		test.PointsToMark[i], _ = strconv.Atoi(r.FormValue(fmt.Sprintf("pointsTo%d", i+2)))
+	}
 	err := test.CreateIDAndSave()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
