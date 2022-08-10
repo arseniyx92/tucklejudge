@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<style>
+table, th, td {
+  border:1px solid black;
+}
+</style>
+
+
+<body>
+
+<table>
+{{range .Results}}
+<tr>
+<td>{{.FullName}}</td>
+<td>{{.Mark}}</td>
+<td><a href="/test/view/{{.TestID}}${{.Username}}">details</a></td>
+</tr>
+{{end}}
+</table>
+
+</body>
+</html>

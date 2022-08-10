@@ -19,6 +19,12 @@
 	<input type="submit" value="Create!">
 </form>
 
+{{$user := .Username}}
+<h3>Checked tests:</h3>
+{{range .Tests}}
+<a href="/test/teacherView/{{.TestID}}">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
+{{end}}
+
 
 {{else}}
 
@@ -28,10 +34,10 @@
 	<input type="submit" value="Check!">
 </form><br>
 
-{{end}}
-
 {{$user := .Username}}
 <h3>Tests:</h3>
 {{range .Tests}}
 <a href="/test/view/{{.TestID}}${{$user}}">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
+{{end}}
+
 {{end}}

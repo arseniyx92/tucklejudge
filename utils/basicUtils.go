@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"io"
+	"errors"
 )
 
 var RandomGen = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -35,6 +36,18 @@ func Init() {
 		IDtoUsername.AddNode(id, scanner.Text())
 	}
 }
+
+func GetUsernameByID(string_id string) (string, error) {
+	id, err := strconv.Atoi(string_id)
+	if (err != nil) {
+		return "", err
+	}
+	username, ok := IDtoUsername.ReturnNodeValue(id)
+	if ok == false {
+		return "", errors.New(fmt.Sprintf("Username with such (%s) userID does not exist", string_id))
+	}
+	return username, nil
+} 
 
 func GetUsername(r *http.Request) (string, error) {
 	c, err := r.Cookie("user_info")
@@ -88,7 +101,7 @@ type User struct {
 	Tests []string
 }
 
-func getCurrentlyFreeID(folderPath string, maxChars int) (string, error) {
+func GetCurrentlyFreeID(folderPath string, maxChars int) (string, error) {
 	f, err := os.Open(fmt.Sprintf("%s/currentID.txt", folderPath))
 	if err != nil {
 		return "", err
@@ -119,7 +132,7 @@ func SaveFormFileToSrc(r *http.Request) (string, error) {
 	defer in.Close()
 	// getting currently free ID for a new image
 	UserFilesMutex.Lock()
-	fileName, err := getCurrentlyFreeID("src", 6)
+	fileName, err := GetCurrentlyFreeID("src", 6)
 	UserFilesMutex.Unlock()
 	if err != nil {
 		return "", err
@@ -142,7 +155,7 @@ func (rg *User) Create() error {
 	defer UserFilesMutex.Unlock()
 
 	// getting currently free ID
-	s, err := getCurrentlyFreeID("authentication", 4)
+	s, err := GetCurrentlyFreeID("authentication", 4)
 	rg.ID = s
 	if err != nil {
 		return err
@@ -241,13 +254,13 @@ func GetAccauntInfo(username string) (*User, error) {
 	scanner.Scan()
 	user.Password = scanner.Text()[len("Password: "):]
 	scanner.Scan()
-	tests_string := string(scanner.Text()[len("Tests: "):])
-	for i := 0; i < len(tests_string); i += 5 {
-		str := ""
-		for j := 0; j < 4; j++ {
-			str += string(tests_string[i+j])
+	tests_strings := strings.Split(string(scanner.Text()[len("Tests: "):]), " ")
+	user.Tests = make([]string, len(tests_strings)-1)
+	for i, str := range tests_strings {
+		if i+1 == len(tests_strings) {
+			continue
 		}
-		user.Tests = append(user.Tests, str)
+		user.Tests[i] = str
 	}
 
 	return user, scanner.Err()
@@ -349,7 +362,7 @@ func GetTestByID(id string) (Test, error) {
 	return test, nil
 }
 
-func AddTestToTeachersList(username string, testID string) error {
+func AddTestToUsersList(username string, testID string) error {
 	user, err := GetAccauntInfo(username)
 	if err != nil {
 		return err
@@ -366,4 +379,77 @@ func GetTestUsersResultByID(testID string, username string) (string, error) {
 	return string(b), nil
 }
 
+type PersonalQuestion struct {
+	Index string
+	UserAnswer string
+	CorrectAnswer string
+	Points string
+}
+
+type PersonalTest struct {
+	UserName string
+	TestName string
+	Mark string
+	InputImageName string
+	ProcessedImageName string
+	Questions []PersonalQuestion
+	PointsSum string
+	PointsToMark [3]string
+}
+
+func CreateTestResultFile(personalTestName string, results *PersonalTest) error {
+	filePath := fmt.Sprintf("tester/testResults/%s.txt", personalTestName)
+	var out string
+	out += fmt.Sprintf("TestName: %s\n", results.TestName)
+	out += fmt.Sprintf("Mark: %s\n", results.Mark)
+	out += fmt.Sprintf("Input image name: %s\n", results.InputImageName)
+	out += fmt.Sprintf("Processed image name: %s\n", results.ProcessedImageName)
+	out += fmt.Sprintf("Questions (%d)\n", len(results.Questions))
+
+	for _, q := range results.Questions {
+		out += fmt.Sprintf("%s) %s %s %s\n", q.Index, q.UserAnswer, q.CorrectAnswer, q.Points)
+	}
+
+	out += fmt.Sprintf("Points sum: %s\n", results.PointsSum)
+	out += "Points to mark: 2, 3, 4\n"
+	out += fmt.Sprintf("%s\n%s\n%s\n", results.PointsToMark[0], results.PointsToMark[1], results.PointsToMark[2])
+
+	return os.WriteFile(filePath, []byte(out), 0600)
+}
+
+type PersonalResult struct {
+	TestID, Username, FullName, Mark string
+}
+
+type ShortTestResultsInfo struct {
+	Results []PersonalResult
+}
+
+func SaveShortResultsInfoToFile(filename string, results *ShortTestResultsInfo) error {
+	out := fmt.Sprintf("Results (%d)\n", len(results.Results))
+	for _, r := range results.Results {
+		out += fmt.Sprintf("%s %s %s %s\n", r.TestID, r.Username, r.FullName, r.Mark)
+	}
+	return os.WriteFile(fmt.Sprintf("tester/teacherTestResults/%s.txt", filename), []byte(out), 0600)
+}
+
+func LoadShortResultsFromFile(filename string) (*ShortTestResultsInfo, error) {
+	byte_in, err := os.ReadFile(fmt.Sprintf("tester/teacherTestResults/%s.txt", filename))
+	if err != nil {
+		return nil, err
+	}
+	in := strings.Split(string(byte_in), "\n")
+	n, err := strconv.Atoi(in[0][len("Results ("):len(in[0])-1])
+	results := &ShortTestResultsInfo {
+		Results: make([]PersonalResult, n),
+	}
+	for i := range results.Results {
+		cur_line := strings.Split(in[i+1], " ")
+		results.Results[i].TestID = cur_line[0]
+		results.Results[i].Username = cur_line[1]
+		results.Results[i].FullName = cur_line[2]
+		results.Results[i].Mark = cur_line[3]
+	}
+	return results, nil
+}
 

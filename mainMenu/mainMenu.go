@@ -3,6 +3,7 @@ package mainMenu
 import (
 	"net/http"
 	"tucklejudge/utils"
+	"fmt"
 )
 
 type MenuUI struct {
@@ -31,13 +32,20 @@ func MainPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tests := make([]TestUI, len(user.Tests))
-	for i, id := range user.Tests {
-		tests[i].TestID = id
-		t, err := utils.GetTestByID(id)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	if user.Teacher {
+		for i, id := range user.Tests {
+			tests[i].TestID = id
+			tests[i].TestName = fmt.Sprintf("Check №%d", i+1)
 		}
-		tests[i].TestName = t.Name
+	} else {
+		for i, id := range user.Tests {
+			tests[i].TestID = id
+			t, err := utils.GetTestByID(id)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			tests[i].TestName = t.Name
+		}
 	}
 
 	menu := &MenuUI{

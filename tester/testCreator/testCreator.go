@@ -50,7 +50,7 @@ func CreationProcessHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	utils.AddTestToTeachersList(username, test.ID)
+	utils.AddTestToUsersList(username, test.ID)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

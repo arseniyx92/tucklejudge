@@ -36,6 +36,7 @@ func main() {
 	http.HandleFunc("/test/createTest/process", testCreator.CreationProcessHandler)
 
 	http.HandleFunc("/test/view/", testViewer.TestViewHandler)
+	http.HandleFunc("/test/teacherView/", testViewer.TeacherTestViewHandler)
 	// http.HandleFunc("/test/deleteTest", testCreator.TestDeletionHandler)
 
 	http.HandleFunc("/test/checkTest", testChecker.TestCheckHandler)

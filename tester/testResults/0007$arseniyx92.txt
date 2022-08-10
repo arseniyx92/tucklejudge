@@ -1,7 +1,7 @@
 TestName: loller
 Mark: 4
-Input image name: kek0
-Processed image name: kek1
+Input image name: kek0.png
+Processed image name: kek1.png
 Questions (1)
 1) 2334YourInput 2335Correct!!! 98
 Points sum: 98

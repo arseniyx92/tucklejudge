@@ -1,26 +1,53 @@
+<!DOCTYPE html>
+<html>
+<style>
+table, th, td {
+  border:1px solid black;
+}
+</style>
+
+
+<body>
 <h1>Test: {{.TestName}} solved by {{.UserName}}</h1>
 <h2>Mark: {{.Mark}}</h2>
 
 <p>Input image: </p><br>
 
-<img src="/src/{{.InputImageName}}.png" alt="Input image" style="width: 200px;height: 400px"><br>
+<img src="/src/{{.InputImageName}}" alt="Input image" style="width: 200px;height: 400px"><br>
 
 <p>Processed image: </p><br>
 
-<img src="/src/{{.ProcessedImageName}}.png" alt="Processed image" style="width: 200px;height: 400px"><br>
+<img src="/src/{{.ProcessedImageName}}" alt="Processed image" style="width: 200px;height: 400px"><br>
 
 {{$user := .UserName}}
 <h3>Questions: </h3>
+<table>
 {{range .Questions}}
-<p>{{.Index}}) {{$user}}'s answer is {{.UserAnswer}} and correct is {{.CorrectAnswer}} -> {{.Points}} points received</p>
+<tr>
+<td>{{.Index}}</td>
+<td>{{$user}}'s answer is {{.UserAnswer}}</td>
+<td>correct is {{.CorrectAnswer}}</td>
+<th>{{.Points}} points received</th>
+</tr>
 {{end}}
+</table>
 
 <h3>Got {{.PointsSum}} points in total and markBounds are:</h3>
-<h4>
-{{range .PointsToMark}}
-< {{.}} 
-{{end}}
-</h4>
-<h4>
-For 2, 3, 4 and 5 above
-</h4>
+
+<table>
+	<tr>
+		<th>2 if < then</th>
+		<th>3 if < then</th>
+		<th>4 if < then</th>
+		<th>5 if >= then</th>
+	</tr>
+	<tr>
+		<td>{{index .PointsToMark 0}}</td>
+		<td>{{index .PointsToMark 1}}</td>
+		<td>{{index .PointsToMark 2}}</td>
+		<td>{{index .PointsToMark 2}}</td>
+	</tr>
+</table>
+
+</body>
+</html>

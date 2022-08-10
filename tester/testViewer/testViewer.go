@@ -8,24 +8,6 @@ import (
 	"fmt"
 )
 
-type PersonalQuestion struct {
-	Index string
-	UserAnswer string
-	CorrectAnswer string
-	Points string
-}
-
-type PersonalTest struct {
-	UserName string
-	TestName string
-	Mark string
-	InputImageName string
-	ProcessedImageName string
-	Questions []PersonalQuestion
-	PointsSum string
-	PointsToMark []string
-}
-
 func TestViewHandler(w http.ResponseWriter, r *http.Request) {
 	if utils.CheckForValidStandardAccess(w, r) == false {
 		return
@@ -41,6 +23,7 @@ func TestViewHandler(w http.ResponseWriter, r *http.Request) {
 		user, err := utils.GetAccauntInfo(username)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 		if !user.Teacher {
 			http.Redirect(w, r, "/", http.StatusFound)
@@ -51,9 +34,10 @@ func TestViewHandler(w http.ResponseWriter, r *http.Request) {
 	str, err := utils.GetTestUsersResultByID(givenTestID, givenUsername)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	strs := strings.Split(str, "\n")
-	testInfo := &PersonalTest{
+	testInfo := &utils.PersonalTest{
 		UserName: givenUsername,
 		TestName: strs[0][len("TestName: "):],
 		Mark: strs[1][len("Mark: "):],
@@ -61,10 +45,10 @@ func TestViewHandler(w http.ResponseWriter, r *http.Request) {
 		ProcessedImageName: strs[3][len("Processed image name: "):],
 		//Questions: []PersonalQuestion
 		PointsSum: strs[len(strs)-6][len("Points sum: "):],
-		PointsToMark: []string{strs[len(strs)-4], strs[len(strs)-3], strs[len(strs)-2]},
+		PointsToMark: [3]string{strs[len(strs)-4], strs[len(strs)-3], strs[len(strs)-2]},
 	}
 	n, _ := strconv.Atoi(strs[4][len("Questions ("):len(strs[4])-1])
-	testInfo.Questions = make([]PersonalQuestion, n)
+	testInfo.Questions = make([]utils.PersonalQuestion, n)
 	for i := 0; i < n; i++ {
 		s := strings.Split(strs[5+i][len(fmt.Sprintf("%d) ", i+1)):], " ")
 		testInfo.Questions[i].Index = string(i+1+'0')
@@ -74,3 +58,17 @@ func TestViewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.RenderTemplate(w, "testViewer", testInfo)
 }
+
+func TeacherTestViewHandler(w http.ResponseWriter, r *http.Request) {
+	if utils.CheckForValidStandardAccess(w, r) == false {
+		return
+	}
+	filename := r.URL.Path[len("/test/teacherView/"):]
+	testingInfo, err := utils.LoadShortResultsFromFile(filename)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	utils.RenderTemplate(w, "testChecker", testingInfo)
+}
+
