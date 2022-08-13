@@ -81,6 +81,11 @@ func TestCheckHandler(w http.ResponseWriter, r *http.Request) {
 	if utils.CheckForValidStandardAccess(w, r) == false {
 		return
 	}
+	if !utils.CheckForTeacher(r) {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
 	fileName, err := utils.SaveFormFileToSrc(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

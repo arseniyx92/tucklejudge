@@ -1,9 +1,0 @@
-ID: 0001
-Username: lolik123
-Name: Kek
-Surname: Loller
-Is teacher: false
-Grade: 7
-Letter: П
-Password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
-Tests: 3250 3250 3250 3250 

@@ -212,8 +212,11 @@ func (rg *User) Save() error {
 
 	// merging test IDs to one string
 	tests_string := ""
-	for _, s := range rg.Tests {
-		tests_string += s + " "
+	for i, s := range rg.Tests {
+		tests_string += s
+		if i+1 != len(rg.Tests) {
+			tests_string += " "
+		}
 	}
 
 	// updating user's file
@@ -255,11 +258,8 @@ func GetAccauntInfo(username string) (*User, error) {
 	user.Password = scanner.Text()[len("Password: "):]
 	scanner.Scan()
 	tests_strings := strings.Split(string(scanner.Text()[len("Tests: "):]), " ")
-	user.Tests = make([]string, len(tests_strings)-1)
+	user.Tests = make([]string, len(tests_strings))
 	for i, str := range tests_strings {
-		if i+1 == len(tests_strings) {
-			continue
-		}
 		user.Tests[i] = str
 	}
 
@@ -269,7 +269,7 @@ func GetAccauntInfo(username string) (*User, error) {
 type Question struct {
 	Answer string
 	Points int
-	Punishment int
+	IndexForTemplate int
 }
 
 type Test struct {
@@ -277,6 +277,7 @@ type Test struct {
 	Name string
 	Questions []Question
 	PointsToMark [3]int // < 2, 3, 4
+	NumberOfQuestionsForTemplate int
 }
 
 var TestFilesMutex sync.Mutex
@@ -286,28 +287,37 @@ func (test *Test) CreateIDAndSave() error {
 	defer TestFilesMutex.Unlock()
 
 	// getting current test ID
-	f, err := os.Open("tester/currentID.txt")
+	string_id, err := GetCurrentlyFreeID("tester", 4)
+	test.ID = string_id
 	if err != nil {
 		return err
 	}
-	scanner := bufio.NewScanner(f)
-	scanner.Scan()
-	id, err := strconv.Atoi(scanner.Text())
-	if err != nil {
-		return err
-	}
-	f.Close()
-	string_id := fmt.Sprintf("%d", id)
-	for len(test.ID)+len(string_id) < 4 {
-		test.ID += "0"
-	}
-	test.ID += string_id
-	os.WriteFile("tester/currentID.txt", []byte(fmt.Sprintf("%d", id+1)), 0600)
+	// f, err := os.Open("tester/currentID.txt")
+	// if err != nil {
+	// 	return err
+	// }
+	// scanner := bufio.NewScanner(f)
+	// scanner.Scan()
+	// id, err := strconv.Atoi(scanner.Text())
+	// if err != nil {
+	// 	return err
+	// }
+	// f.Close()
+	// string_id := fmt.Sprintf("%d", id)
+	// for len(test.ID)+len(string_id) < 4 {
+	// 	test.ID += "0"
+	// }
+	// test.ID += string_id
+	// os.WriteFile("tester/currentID.txt", []byte(fmt.Sprintf("%d", id+1)), 0600)
 
 	// creating new test file
+	return SaveTestToFile(test)
+}
+
+func SaveTestToFile(test *Test) error {
 	testInfo := fmt.Sprintf("Name: %s\nQuestions (%d)\n", test.Name, len(test.Questions))
 	for i, q := range test.Questions {
-		testInfo += fmt.Sprintf("Question %d.\n%s\n%d\n%d\n", i, q.Answer, q.Points, q.Punishment)
+		testInfo += fmt.Sprintf("Question %d.\n%s\n%d\n", i, q.Answer, q.Points)
 	}
 	testInfo += "Points to mark: 2, 3, 4\n"
 	for _, q := range test.PointsToMark {
@@ -347,11 +357,6 @@ func GetTestByID(id string) (Test, error) {
 		if err != nil {
 			return test, err
 		}
-		scanner.Scan()
-		q.Punishment, err = strconv.Atoi(scanner.Text())
-		if err != nil {
-			return test, err
-		}
 	}
 	scanner.Scan() // scanning "Points to mark: 2, 3, 4"
 	for i, _ := range test.PointsToMark {
@@ -362,12 +367,39 @@ func GetTestByID(id string) (Test, error) {
 	return test, nil
 }
 
+func CheckForTeacher(r *http.Request) bool {
+	c, _ := r.Cookie("user_info")
+	UserFilesMutex.Lock()
+	username, _ := LoginCookieStorage.ReturnNodeValue(c.Value)
+	UserFilesMutex.Unlock()
+	user, err := GetAccauntInfo(username)
+	if err != nil || !user.Teacher {
+		return false
+	}
+	return true
+}
+
 func AddTestToUsersList(username string, testID string) error {
 	user, err := GetAccauntInfo(username)
 	if err != nil {
 		return err
 	}
 	user.Tests = append(user.Tests, testID)
+	return user.Save()
+}
+
+func DeleteTestFromUsersList(username string, testID string) error {
+	user, err := GetAccauntInfo(username)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(user.Tests); i++ {
+		if user.Tests[i] == testID {
+			user.Tests[i], user.Tests[len(user.Tests)-1] = user.Tests[len(user.Tests)-1], user.Tests[i]
+			user.Tests = user.Tests[:len(user.Tests)-1]
+			i--
+		}
+	}
 	return user.Save()
 }
 
@@ -453,3 +485,30 @@ func LoadShortResultsFromFile(filename string) (*ShortTestResultsInfo, error) {
 	return results, nil
 }
 
+func Must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func ClearAllData(w http.ResponseWriter, r *http.Request) {
+	// clear all users and set currentID to zero
+	Must(os.RemoveAll("authentication/users"))
+	Must(os.Mkdir("authentication/users", 0755))
+	Must(os.WriteFile("authentication/currentID.txt", []byte("0"), 0600))
+	// clear all tests and set currentID to zero
+	Must(os.RemoveAll("tester/tests"))
+	Must(os.Mkdir("tester/tests", 0755))
+	Must(os.WriteFile("tester/currentID.txt", []byte("0"), 0600))
+	// clear all teacherTestResults and set currentID to zero
+	Must(os.RemoveAll("tester/teacherTestResults"))
+	Must(os.Mkdir("tester/teacherTestResults", 0755))
+	Must(os.WriteFile("tester/teacherTestResults/currentID.txt", []byte("0"), 0600))
+	// clear all testResults
+	Must(os.RemoveAll("tester/testResults"))
+	Must(os.Mkdir("tester/testResults", 0755))
+	// clear all src and set currentID to zero
+	Must(os.RemoveAll("src"))
+	Must(os.Mkdir("src", 0755))
+	Must(os.WriteFile("src/currentID.txt", []byte("0"), 0600))
+}

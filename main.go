@@ -33,11 +33,13 @@ func main() {
 	http.HandleFunc("/", mainMenu.MainPageHandler)
 
 	http.HandleFunc("/test/createTest", testCreator.TestCreatorHandler)
+	http.HandleFunc("/test/editTest/", testCreator.TestEditHandler)
 	http.HandleFunc("/test/createTest/process", testCreator.CreationProcessHandler)
+	http.HandleFunc("/test/saveTest/process/", testCreator.SavingProcessHandler)
+	http.HandleFunc("/test/deleteTest/process/", testCreator.TestDeletionHandler)
 
 	http.HandleFunc("/test/view/", testViewer.TestViewHandler)
 	http.HandleFunc("/test/teacherView/", testViewer.TeacherTestViewHandler)
-	// http.HandleFunc("/test/deleteTest", testCreator.TestDeletionHandler)
 
 	http.HandleFunc("/test/checkTest", testChecker.TestCheckHandler)
 
@@ -47,6 +49,8 @@ func main() {
 	// http.HandleFunc("lesson/addPDF/", lessonEditor.AddNewPDFToLessonHandler)
 	// http.HandleFunc("lesson/changeMarks/", lessonEditor.ChangeMarksHandler)
 	// http.HandleFunc("/test/deployToElectronicMarkBook/", lessonEditor.DeployToElectronicMarkBookHandler)
+
+	http.HandleFunc("/clearEverything__WARNING", utils.ClearAllData)
 
 	http.Handle("/src/", http.StripPrefix("/src/", http.FileServer(http.Dir("./src"))))
 	http.Handle("/favicon.ico", http.NotFoundHandler()) // TODO

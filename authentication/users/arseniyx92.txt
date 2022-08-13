@@ -1,9 +1,0 @@
-ID: 0000
-Username: arseniyx92
-Name: Арсений
-Surname: Хлытчиев
-Is teacher: true
-Grade: 1
-Letter: А
-Password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
-Tests: 0003 0004 0005 0006 0007 000001 

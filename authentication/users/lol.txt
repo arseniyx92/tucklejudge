@@ -1,9 +1,0 @@
-ID: 0002
-Username: lol
-Name: lol
-Surname: lol
-Is teacher: true
-Grade: 1
-Letter: А
-Password: 785f3ec7eb32f30b90cd0fcf3657d388b5ff4297f2f9716ff66e9b69c05ddd09
-Tests: 

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<style>
+table, th, td {
+  border:1px solid black;
+}
+</style>
+
+
+<body>
+<h1>Test Editor</h1>
+<h2>You are editing test #{{.ID}}</h2>
+
+<form action="/test/saveTest/process/{{.ID}}" method="POST">
+
+<label for="testName">Test name:</label>
+<input type="text" name="testName" id="testName" placeholder="ThrillingTest" value="{{.Name}}"><br>
+<label for="numberOfQuestions">Number of questions</label>
+<input type="number" name="numberOfQuestions" id="numberOfQuestions" value="{{.NumberOfQuestionsForTemplate}}" min="1" max="30"><br>
+
+<h3>Questions (maximum answer length is 8) </h3>
+<table>
+<tr>
+<th>Index of question</th>
+<th>Answer</th>
+<th>Points</th>
+</tr>
+{{range .Questions}}
+<tr>
+<td><label for="question{{.}}">{{.IndexForTemplate}}. </label></td>
+<td><input type="text" name="answer{{.IndexForTemplate}}" maxlength = "8" value="{{.Answer}}"></td>
+<td><input type="number" name="points{{.IndexForTemplate}}" min="0" max="100" value="{{.Points}}"></td>
+<br>
+</tr>
+{{end}}
+</table>
+
+<h3>Mark:</h3>
+<p>points < <input type="number" name="pointsTo2" value="{{index .PointsToMark 0}}"> - 2</p>
+<p>points < <input type="number" name="pointsTo3" value="{{index .PointsToMark 1}}"> - 3</p>
+<p>points < <input type="number" name="pointsTo4" value="{{index .PointsToMark 2}}"> - 4</p>
+
+<input type="submit" value="Save!">
+</form>
+
+<form action="/test/deleteTest/process/{{.ID}}" method="POST">
+<input type="submit" value="delete test">
+</form>
+
+</body>
+</html>

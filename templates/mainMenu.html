@@ -14,14 +14,21 @@
 	<input type="submit" value="Check!">
 </form><br>
 
-<form action="/lesson/newLesson" method="POST">
+<!-- <form action="/lesson/newLesson" method="POST">
 	<label for="newLesson">Create new lesson:</label><br>
 	<input type="submit" value="Create!">
-</form>
+</form> -->
 
 {{$user := .Username}}
-<h3>Checked tests:</h3>
+
+<h3>My tests:</h3>
 {{range .Tests}}
+<a href="/test/editTest/{{.TestID}}">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
+{{end}}
+
+{{$user := .Username}}
+<h3>My classes:</h3>
+{{range .Classes}}
 <a href="/test/teacherView/{{.TestID}}">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
 {{end}}
 
