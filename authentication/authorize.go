@@ -171,6 +171,9 @@ func AuthorizationRegHandler(w http.ResponseWriter, r *http.Request) {
 	} else if r.FormValue("password") != r.FormValue("password_check") { // or any other conditions
 		message = "\"Password\"$doesn't$match$with\"Password$check\""
 		failure = true
+	} else if r.FormValue("isTeacher") == "on" && r.FormValue("verificationCode") != utils.VerificationCode {
+		message = "Teacher's$\"Verification$Code\"$doesn't$match$with$a$real$one!"
+		failure = true
 	}
 	if (failure) {
 		info := fmt.Sprintf("%s %s %s %s %s %s %s", message, r.FormValue("username"), r.FormValue("name"), r.FormValue("surname"), r.FormValue("isTeacher"), r.FormValue("grade"), r.FormValue("letter"))

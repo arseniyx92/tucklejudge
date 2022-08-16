@@ -15,12 +15,19 @@ import (
 func main() {
 	utils.Init()
 
-	ticker := time.NewTicker(48*time.Hour)
+	cookieTicker := time.NewTicker(168*time.Hour)
+	newVerificationCodeTicker := time.NewTicker(48*time.Hour)
 
 	go func() {
 		for {
-			<-ticker.C
+			<-cookieTicker.C
 			utils.LoginCookieStorage.Clear()
+		}
+	}()
+	go func() {
+		for {
+			<-newVerificationCodeTicker.C
+			utils.ChangeVerificationCode()
 		}
 	}()
 
@@ -43,10 +50,6 @@ func main() {
 
 	http.HandleFunc("/test/checkTest", testChecker.TestCheckHandler)
 
-	// http.HandleFunc("lesson/create/", lessonEditor.CreateLesson)
-	// http.HandleFunc("lesson/delete/", lessonEditor.DeleteLesson)
-	// http.HandleFunc("lesson/view/", lessonEditor.LessonViewHandler)
-	// http.HandleFunc("lesson/addPDF/", lessonEditor.AddNewPDFToLessonHandler)
 	// http.HandleFunc("lesson/changeMarks/", lessonEditor.ChangeMarksHandler)
 	// http.HandleFunc("/test/deployToElectronicMarkBook/", lessonEditor.DeployToElectronicMarkBookHandler)
 

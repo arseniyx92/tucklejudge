@@ -12,6 +12,7 @@ type MenuUI struct {
 	Teacher bool
 	Tests []TestUI
 	Classes []TestUI
+	OnlyForAdminVecificationCode string
 }
 
 type TestUI struct {
@@ -75,6 +76,10 @@ func MainPageHandler(w http.ResponseWriter, r *http.Request) {
 		Teacher: user.Teacher,
 		Tests: tests,
 		Classes: classes,
+		OnlyForAdminVecificationCode: "",
+	}
+	if utils.CheckForAdmin(r) == true {
+		menu.OnlyForAdminVecificationCode = utils.VerificationCode
 	}
 	utils.RenderTemplate(w, "mainMenu", menu)
 }

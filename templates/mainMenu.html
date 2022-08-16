@@ -1,6 +1,10 @@
 <h1>Welcome {{.Username}}!</h1>
 <h1>Your ID is: <b><ins>#{{.UserID}}</ins></b></h1>
 
+{{if not (eq .OnlyForAdminVecificationCode "")}}
+<h1 style="color:green;">Verification code for teacher registration is: <b><ins>#{{.OnlyForAdminVecificationCode}}</ins></b></h1>
+{{end}}
+
 {{if eq .Teacher true}}
 
 <form action="/test/createTest" method="POST">

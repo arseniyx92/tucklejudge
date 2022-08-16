@@ -22,6 +22,7 @@ var UserFilesMutex sync.Mutex
 
 var IDtoUsername = &splayMap.SplayTree[int, string]{}
 var LoginCookieStorage = &splayMap.SplayTree[string, string]{}
+var VerificationCode string // length = 6
 
 var templates = template.Must(template.ParseGlob("templates/*.html"))
 
@@ -34,6 +35,20 @@ func Init() {
 	scanner := bufio.NewScanner(f)
 	for id := 0; scanner.Scan(); id++ {
 		IDtoUsername.AddNode(id, scanner.Text())
+	}
+	ChangeVerificationCode()
+}
+
+func ChangeVerificationCode() {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	VerificationCode = ""
+	for i := 0; i < 6; i++ {
+		currentChar := rng.Int63()%36
+		if currentChar >= 26 {
+			VerificationCode += string(currentChar-26+'0')
+		} else {
+			VerificationCode += string(currentChar+'A');
+		}
 	}
 }
 
@@ -257,7 +272,10 @@ func GetAccauntInfo(username string) (*User, error) {
 	scanner.Scan()
 	user.Password = scanner.Text()[len("Password: "):]
 	scanner.Scan()
-	tests_strings := strings.Split(string(scanner.Text()[len("Tests: "):]), " ")
+	tests_strings := strings.Split(scanner.Text()[len("Tests: "):], " ")
+	if len(scanner.Text()[len("Tests: "):]) == 0 {
+		tests_strings = make([]string, 0)
+	}
 	user.Tests = make([]string, len(tests_strings))
 	for i, str := range tests_strings {
 		user.Tests[i] = str
@@ -379,6 +397,18 @@ func CheckForTeacher(r *http.Request) bool {
 	return true
 }
 
+
+func CheckForAdmin(r *http.Request) bool {
+	c, _ := r.Cookie("user_info")
+	UserFilesMutex.Lock()
+	username, _ := LoginCookieStorage.ReturnNodeValue(c.Value)
+	UserFilesMutex.Unlock()
+	if username == "_admin" {
+		return true
+	}
+	return false
+}
+
 func AddTestToUsersList(username string, testID string) error {
 	user, err := GetAccauntInfo(username)
 	if err != nil {
@@ -492,10 +522,22 @@ func Must(err error) {
 }
 
 func ClearAllData(w http.ResponseWriter, r *http.Request) {
+	if CheckForValidStandardAccess(w, r) == false {
+		return
+	}
+	if CheckForAdmin(r) == false {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
 	// clear all users and set currentID to zero
+	b, err := os.ReadFile("authentication/users/_admin.txt")
+	if err != nil {
+		panic(err)
+	}
 	Must(os.RemoveAll("authentication/users"))
 	Must(os.Mkdir("authentication/users", 0755))
-	Must(os.WriteFile("authentication/currentID.txt", []byte("0"), 0600))
+	Must(os.WriteFile("authentication/currentID.txt", []byte("1"), 0600))
+	os.WriteFile("authentication/users/_admin.txt", b, 0600)
 	// clear all tests and set currentID to zero
 	Must(os.RemoveAll("tester/tests"))
 	Must(os.Mkdir("tester/tests", 0755))
