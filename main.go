@@ -49,6 +49,7 @@ func main() {
 	http.HandleFunc("/test/teacherView/", testViewer.TeacherTestViewHandler)
 
 	http.HandleFunc("/test/checkTest", testChecker.TestCheckHandler)
+	http.HandleFunc("/test/recheckTest/", testChecker.TestRecheckHandler)
 
 	// http.HandleFunc("lesson/changeMarks/", lessonEditor.ChangeMarksHandler)
 	// http.HandleFunc("/test/deployToElectronicMarkBook/", lessonEditor.DeployToElectronicMarkBookHandler)

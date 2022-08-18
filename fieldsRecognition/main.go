@@ -2,6 +2,7 @@ package fieldsRecognition
 
 import (
 	"errors"
+	"tucklejudge/utils"
 	"tucklejudge/fieldsRecognition/AI"
 	"tucklejudge/fieldsRecognition/neuralNetwork/pkg/cnn"
 	"tucklejudge/fieldsRecognition/neuralNetwork/pkg/cnn/metrics"
@@ -1683,7 +1684,8 @@ func fieldsRecognizer(img *image.Gray, kernelX, kernelY, minimumFieldSize int) (
 var perceptrons = AI.InitializePerceptronMesh()
 var NN *cnn.Network
 
-func formValuesProcessing(init image.Image) (results []string) {
+func formValuesProcessing(init image.Image) (results []string, outputImage *image.Gray) {
+	outputImage = imageToGrayScale(init)
 	if !PERCEPTRON {
 		NN = cnn.New([]int{28, 28}, 0.005, &metrics.CrossEntropyLoss{})
 		//NN.LoadConvolutionLayer([]int{3, 3}, 8).
@@ -1783,9 +1785,10 @@ func formValuesProcessing(init image.Image) (results []string) {
 			if DEBUG {
 				fmt.Print(digit, " ")
 			}
+			// MaybeInFuture: fillFragmentToImage(image.Rect(start, minY, finish, maxY+1), imageOfDigit[digit])
 			for i := start; i < finish; i++ {
 				for j := minY; j <= maxY; j++ {
-					img.SetGray(i, j, color.Gray{Y: uint8(digit)})
+					outputImage.SetGray(i, j, color.Gray{Y: 10*uint8(digit)})
 				}
 			}
 			if digit != 10 {
@@ -1801,23 +1804,37 @@ func formValuesProcessing(init image.Image) (results []string) {
 		}
 	}
 
-	printImage("fields.png", img)
-	return results
+	// printImage("fields.png", img)
+	return results, outputImage
 }
 
-func BringTestResultsFromPhoto(filepath string) []string {
+func BringTestResultsFromPhoto(filepath string) (results, images []string) {
 	img, _ := getImageFromFile(filepath)
+	// saving initial imge to src folder
+	images = []string{utils.SaveImageToSrc(img), ""}
+	// preprocessing image
 	img = photoToStandardDocument(img)
-	return formValuesProcessing(img)
+	// calculating results
+	results, img = formValuesProcessing(img)
+	// saving processed imge to src folder
+	images[1] = utils.SaveImageToSrc(img)
+	return results, images
 }
 
-func BringTestResultsFromPDFs(filepath string) (result [][]string) {
+func BringTestResultsFromPDFs(filepath string) (results, images [][]string) {
 	imgs, _ := getImagesFromPdf(filepath)
 	for _, img := range imgs {
+		// saving initial imge to src folder
+		images = append(images, []string{utils.SaveImageToSrc(img), ""})
+		// preprocessing image
 		img = photoToStandardDocument(img)
-		result = append(result, formValuesProcessing(img))
+		// calculating results
+		current_results, img := formValuesProcessing(img)
+		results = append(results, current_results)
+		// saving processed imge to src folder
+		images[len(images)-1][1] = utils.SaveImageToSrc(img)
 	}
-	return result
+	return results, images
 }
 
 // func main() {

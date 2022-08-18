@@ -12,12 +12,19 @@ table, th, td {
 <table>
 {{range .Results}}
 <tr>
+<td>{{.IndexForTemplate}})</td>
 <td>{{.FullName}}</td>
 <td>{{.Mark}}</td>
 <td><a href="/test/view/{{.TestID}}${{.Username}}">details</a></td>
 </tr>
 {{end}}
 </table>
+
+<form action="/test/recheckTest/{{.IDForTemplate}}" enctype="multipart/form-data" method="POST">
+	<label for="file">Check again:</label><br>
+	<input type="file" name="file"><br>
+	<input type="submit" value="Retest">
+</form><br>
 
 </body>
 </html>

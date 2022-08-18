@@ -39,12 +39,16 @@ func createProtocol(input []string, inputPictureName, processedPictureName strin
 		} else {
 			ind += 2*(i-15)+1
 		}
-		userAnswer := input[i+2]
+		userAnswer := input[ind]
 		results.Questions[i].Index = fmt.Sprint(i+1)
-		results.Questions[i].UserAnswer = userAnswer[:len(q.Answer)]
+		if len(userAnswer) < len(q.Answer) {
+			results.Questions[i].UserAnswer = userAnswer
+		} else {
+			results.Questions[i].UserAnswer = userAnswer[:len(q.Answer)]
+		}
 		results.Questions[i].CorrectAnswer = q.Answer
 		results.Questions[i].Points = "0"
-		if (q.Answer == userAnswer[:len(q.Answer)]) {
+		if (q.Answer == results.Questions[i].UserAnswer) {
 			results.Questions[i].Points = fmt.Sprint(q.Points)
 			numericPointsSum += q.Points
 		}
@@ -77,7 +81,7 @@ func createProtocol(input []string, inputPictureName, processedPictureName strin
 	return short_result, nil
 }
 
-func TestCheckHandler(w http.ResponseWriter, r *http.Request) {
+func checkTestsAndRenderTemplate(w http.ResponseWriter, r *http.Request, string_id string) {
 	if utils.CheckForValidStandardAccess(w, r) == false {
 		return
 	}
@@ -100,31 +104,34 @@ func TestCheckHandler(w http.ResponseWriter, r *http.Request) {
 	var inputInfo [][]string
 	var imagesNames [][]string
 	if ext == "pdf" {
-		// TODO should be inputInfo, imagesNames
-		inputInfo = fieldsRecognition.BringTestResultsFromPDFs("src/"+fileName)
+		inputInfo, imagesNames = fieldsRecognition.BringTestResultsFromPDFs("src/"+fileName)
 	} else {
-		// TODO should be inputInfo[0], imagesNames[0]
 		inputInfo := make([][]string, 1)
-		inputInfo[0] = fieldsRecognition.BringTestResultsFromPhoto("src/"+fileName)
+		imagesNames := make([][]string, 1)
+		inputInfo[0], imagesNames[0] = fieldsRecognition.BringTestResultsFromPhoto("src/"+fileName)
 	}
 
 	testingInfo := &utils.ShortTestResultsInfo {
 		Results: make([]utils.PersonalResult, len(inputInfo)),
 	}
 	for i, str := range inputInfo {
-		imagesNames = append(imagesNames, []string{fileName, fileName}) // TODO make redundant
+		// imagesNames = append(imagesNames, []string{fileName, fileName}) // TODO make redundant
 		res, err := createProtocol(str, imagesNames[i][0], imagesNames[i][1])
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		testingInfo.Results[i] = *res
+		testingInfo.Results[i].IndexForTemplate = i+1
 	}
-	string_id, err := utils.GetCurrentlyFreeID("tester/teacherTestResults", 6)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if string_id == "" {
+		string_id, err = utils.GetCurrentlyFreeID("tester/teacherTestResults", 6)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
+	testingInfo.IDForTemplate = string_id
 	err = utils.SaveShortResultsInfoToFile(string_id, testingInfo)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -141,4 +148,13 @@ func TestCheckHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RenderTemplate(w, "testChecker", testingInfo)
+}
+
+func TestCheckHandler(w http.ResponseWriter, r *http.Request) {
+	checkTestsAndRenderTemplate(w, r, "")
+}
+
+func TestRecheckHandler(w http.ResponseWriter, r *http.Request) {
+	string_id := r.URL.Path[len("/test/recheckTest/"):]
+	checkTestsAndRenderTemplate(w, r, string_id)
 }

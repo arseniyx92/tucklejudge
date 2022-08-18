@@ -51,7 +51,7 @@ func TestViewHandler(w http.ResponseWriter, r *http.Request) {
 	testInfo.Questions = make([]utils.PersonalQuestion, n)
 	for i := 0; i < n; i++ {
 		s := strings.Split(strs[5+i][len(fmt.Sprintf("%d) ", i+1)):], " ")
-		testInfo.Questions[i].Index = string(i+1+'0')
+		testInfo.Questions[i].Index = fmt.Sprint(i+1)
 		testInfo.Questions[i].UserAnswer = s[0]
 		testInfo.Questions[i].CorrectAnswer = s[1]
 		testInfo.Questions[i].Points = s[2]

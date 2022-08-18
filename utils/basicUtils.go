@@ -14,6 +14,9 @@ import (
 	"strings"
 	"io"
 	"errors"
+	"image"
+	_ "image/png"
+	"image/png"
 )
 
 var RandomGen = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -147,7 +150,7 @@ func SaveFormFileToSrc(r *http.Request) (string, error) {
 	defer in.Close()
 	// getting currently free ID for a new image
 	UserFilesMutex.Lock()
-	fileName, err := GetCurrentlyFreeID("src", 6)
+	fileName, err := GetCurrentlyFreeID("src", 12)
 	UserFilesMutex.Unlock()
 	if err != nil {
 		return "", err
@@ -414,6 +417,11 @@ func AddTestToUsersList(username string, testID string) error {
 	if err != nil {
 		return err
 	}
+	for _, test := range user.Tests {
+		if test == testID {
+			return nil
+		}
+	}
 	user.Tests = append(user.Tests, testID)
 	return user.Save()
 }
@@ -481,10 +489,12 @@ func CreateTestResultFile(personalTestName string, results *PersonalTest) error 
 
 type PersonalResult struct {
 	TestID, Username, FullName, Mark string
+	IndexForTemplate int
 }
 
 type ShortTestResultsInfo struct {
 	Results []PersonalResult
+	IDForTemplate string
 }
 
 func SaveShortResultsInfoToFile(filename string, results *ShortTestResultsInfo) error {
@@ -504,13 +514,15 @@ func LoadShortResultsFromFile(filename string) (*ShortTestResultsInfo, error) {
 	n, err := strconv.Atoi(in[0][len("Results ("):len(in[0])-1])
 	results := &ShortTestResultsInfo {
 		Results: make([]PersonalResult, n),
+		IDForTemplate: filename,
 	}
 	for i := range results.Results {
 		cur_line := strings.Split(in[i+1], " ")
 		results.Results[i].TestID = cur_line[0]
 		results.Results[i].Username = cur_line[1]
-		results.Results[i].FullName = cur_line[2]
-		results.Results[i].Mark = cur_line[3]
+		results.Results[i].FullName = cur_line[2] + cur_line[3]
+		results.Results[i].Mark = cur_line[4]
+		results.Results[i].IndexForTemplate = i+1
 	}
 	return results, nil
 }
@@ -538,6 +550,7 @@ func ClearAllData(w http.ResponseWriter, r *http.Request) {
 	Must(os.Mkdir("authentication/users", 0755))
 	Must(os.WriteFile("authentication/currentID.txt", []byte("1"), 0600))
 	os.WriteFile("authentication/users/_admin.txt", b, 0600)
+	os.WriteFile("authentication/users.txt", []byte("_admin\n"), 0600)
 	// clear all tests and set currentID to zero
 	Must(os.RemoveAll("tester/tests"))
 	Must(os.Mkdir("tester/tests", 0755))
@@ -553,4 +566,21 @@ func ClearAllData(w http.ResponseWriter, r *http.Request) {
 	Must(os.RemoveAll("src"))
 	Must(os.Mkdir("src", 0755))
 	Must(os.WriteFile("src/currentID.txt", []byte("0"), 0600))
+}
+
+
+func SaveImageToSrc(img image.Image) string {
+	// getting currently free ID for a new image
+	UserFilesMutex.Lock()
+	fileName, _ := GetCurrentlyFreeID("src", 12)
+	UserFilesMutex.Unlock()
+	fileName += ".png"
+	filepath := "src/"+fileName
+	// creating new image
+    if _, err := os.Stat(filepath); err == nil {
+		os.Remove(filepath)
+	}
+	f, _ := os.Create(filepath)
+	_ = png.Encode(f, img)
+	return fileName
 }
