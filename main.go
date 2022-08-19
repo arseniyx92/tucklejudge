@@ -37,6 +37,8 @@ func main() {
 	http.HandleFunc("/register/", authentication.RegisterHandler)
 	http.HandleFunc("/authorize/register", authentication.AuthorizationRegHandler)
 
+	http.HandleFunc("/logout", authentication.LogoutHandler)
+
 	http.HandleFunc("/", mainMenu.MainPageHandler)
 
 	http.HandleFunc("/test/createTest", testCreator.TestCreatorHandler)

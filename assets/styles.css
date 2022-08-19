@@ -26,13 +26,12 @@ p {
   text-align: center;
 }
 
+
 /* https://codepen.io/yuhomyan/pen/OJMejWJ */
 input[type="file"], button {
   margin: 20px;
 }
 input[type="file"], button {
-  /*width: 300px;*/
-  /*height: 40px;*/
   color: #fff;
   border-radius: 5px;
   padding: 10px 25px;
@@ -80,6 +79,11 @@ button:active {
   top: 2px;
 }
 
+
+button.specialBtn {
+    background-color:  #FF7F50;
+    align-self: left;
+}
 
 
 table, th, td {

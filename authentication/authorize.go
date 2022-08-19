@@ -206,3 +206,18 @@ var usual_registration = Registration{
 	Grades: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
 	Letters: []string{"А", "Б", "В", "Г", "Д", "Е", "Ж", "З", "И", "К", "Л", "М", "Н", "О", "П", "Р", "С", "Т", "У", "Ф", "Х", "Ц", "Ч", "Ш", "Щ", "Э", "Ю", "Я"},
 }
+
+func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	if utils.CheckForValidStandardAccess(w, r) == false {
+		return
+	}
+	c := &http.Cookie{
+	    Name:     "user_info",
+	    Value:    "",
+	    Path:     "/",
+	    Expires: time.Unix(0, 0),
+	    HttpOnly: true,
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, "/", http.StatusFound)
+}
