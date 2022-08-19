@@ -1,21 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="/assets/styles.css">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<style>
+body, h1,h2,h3,h4,h5,h6 {font-family: "Montserrat", sans-serif}
+</style>
+</head>
+
+
+<body>
 <h1>Welcome {{.Username}}!</h1>
-<h1>Your ID is: <b><ins>#{{.UserID}}</ins></b></h1>
+<h1 style="color:green;">Your ID is: <b><ins>#{{.UserID}}</ins></b></h1>
 
 {{if not (eq .OnlyForAdminVecificationCode "")}}
-<h1 style="color:green;">Verification code for teacher registration is: <b><ins>#{{.OnlyForAdminVecificationCode}}</ins></b></h1>
+<h1 style="color:red;">Verification code for teacher registration is: <b><ins>#{{.OnlyForAdminVecificationCode}}</ins></b></h1>
 {{end}}
 
 {{if eq .Teacher true}}
 
-<form action="/test/createTest" method="POST">
+<form action="/test/createTest" target="_blank" method="POST">
 	<label for="createTest">Create new test:</label><br>
-	<input type="submit" value="Create new test">
+	<button type="submit" value="Create new test">Create new test</button>
 </form><br>
 
 <form action="/test/checkTest" enctype="multipart/form-data" method="POST">
 	<label for="file">Check tests from PDF pile or from photo:</label><br>
 	<input type="file" name="file"><br>
-	<input type="submit" value="Check!">
+	<button type="submit" value="Check!">Check!</button>
 </form><br>
 
 <!-- <form action="/lesson/newLesson" method="POST">
@@ -27,7 +42,7 @@
 
 <h3>My tests:</h3>
 {{range .Tests}}
-<a href="/test/editTest/{{.TestID}}">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
+<a href="/test/editTest/{{.TestID}}" target="_blank">Test ID: {{.TestID}}<br>Test Name: {{.TestName}}</a><hr>
 {{end}}
 
 {{$user := .Username}}
@@ -52,3 +67,5 @@
 {{end}}
 
 {{end}}
+</body>
+</html>

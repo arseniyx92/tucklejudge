@@ -1,21 +1,31 @@
 <!DOCTYPE html>
 <html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="/assets/styles.css">
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 <style>
-table, th, td {
-  border:1px solid black;
-}
+body, h1,h2,h3,h4,h5,h6 {font-family: "Montserrat", sans-serif}
 </style>
+</head>
 
 
 <body>
-
 <table>
+<tr>
+<th>Index</th>
+<th>Full name</th>
+<th>Mark</th>
+<th>Details</th>
+</tr>
 {{range .Results}}
 <tr>
 <td>{{.IndexForTemplate}})</td>
 <td>{{.FullName}}</td>
 <td>{{.Mark}}</td>
-<td><a href="/test/view/{{.TestID}}${{.Username}}">details</a></td>
+<td><a href="/test/view/{{.TestID}}${{.Username}}" target="_blank">details</a></td>
 </tr>
 {{end}}
 </table>
@@ -23,8 +33,13 @@ table, th, td {
 <form action="/test/recheckTest/{{.IDForTemplate}}" enctype="multipart/form-data" method="POST">
 	<label for="file">Check again:</label><br>
 	<input type="file" name="file"><br>
-	<input type="submit" value="Retest">
+	<button type="submit" value="Retest">Retest</button>
 </form><br>
+
+
+<a href="/">
+	<button>Return back to main page</button>
+</a>
 
 </body>
 </html>

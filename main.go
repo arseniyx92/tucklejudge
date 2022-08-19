@@ -57,6 +57,7 @@ func main() {
 	http.HandleFunc("/clearEverything__WARNING", utils.ClearAllData)
 
 	http.Handle("/src/", http.StripPrefix("/src/", http.FileServer(http.Dir("./src"))))
+	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets"))))
 	http.Handle("/favicon.ico", http.NotFoundHandler()) // TODO
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
