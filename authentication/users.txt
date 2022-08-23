@@ -1,5 +1,1 @@
 _admin
-teacher
-student
-student2
-student3
