@@ -1,0 +1,13 @@
+TestName: Редактирую тест
+Mark: 2
+Input image name: 000000000027.png
+Processed image name: 000000000028.png
+Questions (3)
+1) 188 132 0
+2) 198 486 0
+3) 38 31 0
+Points sum: 0
+Points to mark: 2, 3, 4
+21
+50
+70

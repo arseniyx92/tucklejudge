@@ -520,7 +520,7 @@ func LoadShortResultsFromFile(filename string) (*ShortTestResultsInfo, error) {
 		cur_line := strings.Split(in[i+1], " ")
 		results.Results[i].TestID = cur_line[0]
 		results.Results[i].Username = cur_line[1]
-		results.Results[i].FullName = cur_line[2] + cur_line[3]
+		results.Results[i].FullName = cur_line[2] + " " + cur_line[3]
 		results.Results[i].Mark = cur_line[4]
 		results.Results[i].IndexForTemplate = i+1
 	}
@@ -542,6 +542,9 @@ func ClearAllData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// clear all users and set currentID to zero
+	admin, _ := GetAccauntInfo("_admin")
+	admin.Tests = make([]string, 0);
+	admin.Save()
 	b, err := os.ReadFile("authentication/users/_admin.txt")
 	if err != nil {
 		panic(err)

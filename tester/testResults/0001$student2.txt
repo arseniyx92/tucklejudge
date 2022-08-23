@@ -1,0 +1,13 @@
+TestName: lmao
+Mark: 5
+Input image name: 000000000017.png
+Processed image name: 000000000018.png
+Questions (3)
+1) 12345678 12345678 2
+2) 80231 90231 0
+3) 6521 6521 2
+Points sum: 4
+Points to mark: 2, 3, 4
+2
+3
+4

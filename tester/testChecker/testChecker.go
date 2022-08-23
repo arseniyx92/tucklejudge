@@ -9,8 +9,8 @@ import (
 )
 
 func createProtocol(input []string, inputPictureName, processedPictureName string) (*utils.PersonalResult, error) {
-	// userID := input[0]
-	userID := "0001"
+	userID := input[0]
+	// userID := "0001"
 	testID := input[1]
 	test, err := utils.GetTestByID(testID)
 	if err != nil {
@@ -106,23 +106,24 @@ func checkTestsAndRenderTemplate(w http.ResponseWriter, r *http.Request, string_
 	if ext == "pdf" {
 		inputInfo, imagesNames = fieldsRecognition.BringTestResultsFromPDFs("src/"+fileName)
 	} else {
-		inputInfo := make([][]string, 1)
-		imagesNames := make([][]string, 1)
-		inputInfo[0], imagesNames[0] = fieldsRecognition.BringTestResultsFromPhoto("src/"+fileName)
+		inputInfo = make([][]string, 1)
+		imagesNames = make([][]string, 1)
+		inputInfo[0], imagesNames[0] = fieldsRecognition.BringTestResultsFromPhoto("src/"+fileName, ext)
 	}
 
 	testingInfo := &utils.ShortTestResultsInfo {
-		Results: make([]utils.PersonalResult, len(inputInfo)),
+		Results: make([]utils.PersonalResult, 0), //len(inputInfo)
 	}
 	for i, str := range inputInfo {
 		// imagesNames = append(imagesNames, []string{fileName, fileName}) // TODO make redundant
 		res, err := createProtocol(str, imagesNames[i][0], imagesNames[i][1])
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			continue;
+			// http.Error(w, err.Error(), http.StatusInternalServerError)
+			// return
 		}
-		testingInfo.Results[i] = *res
-		testingInfo.Results[i].IndexForTemplate = i+1
+		res.IndexForTemplate = i+1
+		testingInfo.Results = append(testingInfo.Results, *res)
 	}
 	if string_id == "" {
 		string_id, err = utils.GetCurrentlyFreeID("tester/teacherTestResults", 6)

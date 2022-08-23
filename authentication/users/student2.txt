@@ -1,0 +1,9 @@
+ID: 0003
+Username: student2
+Name: Лунтик
+Surname: Лунтикович
+Is teacher: false
+Grade: 3
+Letter: Д
+Password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
+Tests: 0001

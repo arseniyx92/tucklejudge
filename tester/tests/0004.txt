@@ -1,0 +1,15 @@
+Name: Редактирую тест
+Questions (3)
+Question 0.
+132
+3
+Question 1.
+486
+20
+Question 2.
+31
+70
+Points to mark: 2, 3, 4
+21
+50
+70

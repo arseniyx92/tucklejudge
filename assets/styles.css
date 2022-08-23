@@ -1,6 +1,13 @@
 * {
     margin-left: 1%;
 }
+img{
+    width: 20%;
+    height: 40%;
+}
+img.logo{
+  width: 20%;
+}
 body {
   background: #EAEEEF;
   position: relative;

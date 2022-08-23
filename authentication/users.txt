@@ -1,3 +1,5 @@
 _admin
-TEACHER
-ON_kek_lol
+teacher
+student
+student2
+student3

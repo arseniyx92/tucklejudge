@@ -1,9 +1,9 @@
-ID: 0002
-Username: ON_kek_lol
+ID: 0004
+Username: student3
 Name: Kek
 Surname: Loller
-Is teacher: true
-Grade: 1
-Letter: А
+Is teacher: false
+Grade: 6
+Letter: З
 Password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
 Tests: 

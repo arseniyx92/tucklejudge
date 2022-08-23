@@ -11,6 +11,7 @@ import (
 	"golang.org/x/exp/constraints"
 	"image"
 	"image/color"
+	"image/jpeg"
 	_ "image/jpeg"
 	"image/png"
 	_ "image/png"
@@ -201,13 +202,23 @@ func getImagesFromPdf(filepath string) ([]image.Image, error) {
 	return images, nil
 }
 
-func getImageFromFile(filepath string) (image.Image, error) {
+func getImageFromPNG(filepath string) (image.Image, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	image, _, err := image.Decode(f)
+	image, err := png.Decode(f)
+	return image, err
+}
+
+func getImageFromJPEG(filepath string) (image.Image, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	image, err := jpeg.Decode(f)
 	return image, err
 }
 
@@ -1791,6 +1802,9 @@ func formValuesProcessing(init image.Image) (results []string, outputImage *imag
 					outputImage.SetGray(i, j, color.Gray{Y: 10*uint8(digit)})
 				}
 			}
+			if digit == 10 { // TODO CRINGE FIX PLEASE CAN'T STAND
+				digit = 0
+			}
 			if digit != 10 {
 				currentValue += string(rune(digit + '0'))
 			}
@@ -1808,8 +1822,15 @@ func formValuesProcessing(init image.Image) (results []string, outputImage *imag
 	return results, outputImage
 }
 
-func BringTestResultsFromPhoto(filepath string) (results, images []string) {
-	img, _ := getImageFromFile(filepath)
+func BringTestResultsFromPhoto(filepath string, ext string) (results, images []string) {
+	var img image.Image
+	if ext == "jpeg" {
+		img, _ = getImageFromJPEG(filepath)
+	} else if ext == "png" {
+		img, _ = getImageFromPNG(filepath)
+	} else {
+		img, _ = getImageFromJPEG(filepath)
+	}
 	// saving initial imge to src folder
 	images = []string{utils.SaveImageToSrc(img), ""}
 	// preprocessing image
