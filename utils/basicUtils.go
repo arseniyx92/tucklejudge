@@ -541,19 +541,14 @@ func ClearAllData(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
+	UserFilesMutex.Lock()
+	TestFilesMutex.Lock()
+	IDtoUsername.Clear()
+	LoginCookieStorage.Clear()
 	// clear all users and set currentID to zero
-	admin, _ := GetAccauntInfo("_admin")
-	admin.Tests = make([]string, 0);
-	admin.Save()
-	b, err := os.ReadFile("authentication/users/_admin.txt")
-	if err != nil {
-		panic(err)
-	}
 	Must(os.RemoveAll("authentication/users"))
 	Must(os.Mkdir("authentication/users", 0755))
-	Must(os.WriteFile("authentication/currentID.txt", []byte("1"), 0600))
-	os.WriteFile("authentication/users/_admin.txt", b, 0600)
-	os.WriteFile("authentication/users.txt", []byte("_admin\n"), 0600)
+	Must(os.WriteFile("authentication/currentID.txt", []byte("0"), 0600))
 	// clear all tests and set currentID to zero
 	Must(os.RemoveAll("tester/tests"))
 	Must(os.Mkdir("tester/tests", 0755))
@@ -569,6 +564,8 @@ func ClearAllData(w http.ResponseWriter, r *http.Request) {
 	Must(os.RemoveAll("src"))
 	Must(os.Mkdir("src", 0755))
 	Must(os.WriteFile("src/currentID.txt", []byte("0"), 0600))
+	UserFilesMutex.Unlock()
+	TestFilesMutex.Unlock()
 }
 
 
