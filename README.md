@@ -6,6 +6,9 @@
 It's a system that allows your educational organization 
 to check offline tests faster with an ability of sharing 
 students' mistakes faster and in more elegant way.
+
+**[TuckleJudge intro movie](https://vimeo.com/743428966)**
+
 ### User instructions
 Initially you have to register student account with `_admin` name.
 
