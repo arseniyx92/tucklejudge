@@ -82,9 +82,10 @@ just refused to work properly. `60%` accuracy, by God, it's enormously tiny numb
 </p>
 
 **_BTW, the algorithm was quite interesting and amusing, pretty technological at some point, 
-so if you're interested in the way I've implemented it, check out my <a src="https://t.me/mt19937_seed_228">Telegram channel</a>._**
+so if you're interested in the way I've implemented it, 
+check out my [Telegram channel](https://t.me/mt19937_seed_228)._**
 
-Then I brought CNN from <a src="github.com/rubenwo/cnn-go">this repository</a>, wrote all the functions for image transformation 
+Then I brought CNN from [this repository](github.com/rubenwo/cnn-go), wrote all the functions for image transformation 
 and for saving layers to file. And what??? It's just unfair. 
 This CNN can obtain only one convolutional layer 
 because it just crushed if I used some different model from what the author presented.
